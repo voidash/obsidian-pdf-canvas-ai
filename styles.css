@@ -939,6 +939,23 @@
   padding: 0 6px;
   user-select: none;
 }
+.pcai-page-info-clickable {
+  cursor: pointer;
+  border-radius: 3px;
+}
+.pcai-page-info-clickable:hover {
+  background: var(--background-modifier-hover);
+}
+.pcai-page-jump-input {
+  width: 50px;
+  font-size: 12px;
+  padding: 1px 4px;
+  border: 1px solid var(--interactive-accent);
+  border-radius: 3px;
+  text-align: center;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
 .pcai-ask-btn {
   padding: 4px 10px;
   font-size: 12px;
@@ -952,6 +969,7 @@
   background: var(--background-secondary);
   user-select: text;
   -webkit-user-select: text;
+  outline: none;
 }
 .pcai-pdf-pages {
   display: flex;
@@ -966,6 +984,71 @@
   border-radius: 2px;
 }
 
+
+/* ── Search bar ──────────────────────────────────── */
+
+.pcai-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
+  flex-shrink: 0;
+}
+.pcai-search-input {
+  flex: 1;
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  min-width: 0;
+}
+.pcai-search-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+.pcai-search-results-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: center;
+}
+.pcai-search-highlight {
+  background: rgba(255, 200, 0, 0.4) !important;
+  border-radius: 2px;
+}
+
+/* ── Outline / TOC panel ─────────────────────────── */
+
+.pcai-outline-panel {
+  max-height: 300px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  flex-shrink: 0;
+}
+.pcai-outline-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.pcai-outline-item {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-normal);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pcai-outline-item:hover {
+  background: var(--background-modifier-hover);
+}
 
 /* ── Canvas inline PDF ──────────────────────────── */
 

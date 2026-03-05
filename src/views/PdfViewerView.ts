@@ -36,9 +36,23 @@ export class PdfViewerView extends ItemView {
 
   // DOM refs — viewer panel
   private pagesEl!: HTMLElement;
+  private viewportEl!: HTMLElement;
   private filenameLabelEl!: HTMLElement;
   private pageInfoEl!: HTMLElement;
   private selectionMenuEl!: HTMLElement;
+  private searchBarEl!: HTMLElement;
+  private searchInputEl!: HTMLInputElement;
+  private searchResultsEl!: HTMLElement;
+  private outlineEl!: HTMLElement;
+
+  // Search state
+  private searchOpen = false;
+  private searchMatches: { page: number; index: number }[] = [];
+  private searchCurrentIdx = -1;
+
+  // Scroll-based page tracking
+  private pageTrackingObserver: IntersectionObserver | null = null;
+  private visiblePages = new Set<number>();
 
   // Event handler refs for cleanup
   private mousedownHandler: ((e: MouseEvent) => void) | null = null;
@@ -405,6 +419,8 @@ export class PdfViewerView extends ItemView {
     const viewerPanel = parent.createDiv('pcai-viewer-panel');
 
     this.buildToolbar(viewerPanel);
+    this.buildSearchBar(viewerPanel);
+    this.buildOutlinePanel(viewerPanel);
     this.buildViewport(viewerPanel);
   }
 
@@ -425,10 +441,15 @@ export class PdfViewerView extends ItemView {
     const prevBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Previous page' }, text: '\u25C0' });
     prevBtn.addEventListener('click', () => this.navigatePage(-1));
 
-    this.pageInfoEl = navGroup.createSpan({ cls: 'pcai-pdf-page-info', text: '\u2014' });
+    this.pageInfoEl = navGroup.createSpan({ cls: 'pcai-pdf-page-info pcai-page-info-clickable', text: '\u2014' });
+    this.pageInfoEl.setAttribute('title', 'Click to jump to page');
+    this.pageInfoEl.addEventListener('click', () => this.showPageJumpInput());
 
     const nextBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Next page' }, text: '\u25B6' });
     nextBtn.addEventListener('click', () => this.navigatePage(1));
+
+    const searchBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Search (Ctrl+F)' }, text: '\uD83D\uDD0D' });
+    searchBtn.addEventListener('click', () => this.toggleSearch());
 
     const zoomGroup = bar.createDiv('pcai-pdf-zoom');
 
@@ -441,13 +462,23 @@ export class PdfViewerView extends ItemView {
     const fitBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Fit to width' }, text: '\u2922' });
     fitBtn.addEventListener('click', () => this.fitToWidth());
 
+    const outlineBtn = bar.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Table of contents' }, text: '\u2630' });
+    outlineBtn.addEventListener('click', () => this.toggleOutline());
+
     const aiBtn = bar.createEl('button', { cls: 'pcai-ask-btn mod-cta', text: 'Ask AI' });
     aiBtn.addEventListener('click', () => this.askAboutCurrentPdf());
   }
 
   private buildViewport(root: HTMLElement): void {
-    const viewport = root.createDiv('pcai-pdf-viewport');
-    this.pagesEl = viewport.createDiv('pcai-pdf-pages');
+    this.viewportEl = root.createDiv('pcai-pdf-viewport');
+    this.pagesEl = this.viewportEl.createDiv('pcai-pdf-pages');
+
+    // Track current page on scroll
+    this.viewportEl.addEventListener('scroll', () => this.updateCurrentPageOnScroll());
+
+    // Keyboard shortcuts
+    this.viewportEl.setAttribute('tabindex', '0');
+    this.viewportEl.addEventListener('keydown', (e: KeyboardEvent) => this.handleKeyboard(e));
   }
 
   private buildSelectionMenu(root: HTMLElement): void {
@@ -641,6 +672,291 @@ export class PdfViewerView extends ItemView {
       this.currentScale = viewportWidth / naturalWidth;
       this.rerenderAllPages().catch((e: unknown) => console.error('PDF Canvas AI \u2014 fitToWidth error:', e));
     }).catch((e: unknown) => console.error('PDF Canvas AI \u2014 fitToWidth error:', e));
+  }
+
+  // ─── Current page tracking on scroll ────────────────────────────────────────
+
+  private updateCurrentPageOnScroll(): void {
+    if (!this.pdfDoc) return;
+    const wrappers = Array.from(this.pagesEl.querySelectorAll<HTMLElement>('[data-page]'));
+    const scrollTop = this.viewportEl.scrollTop;
+    const viewportCenter = scrollTop + this.viewportEl.clientHeight / 2;
+
+    let currentPage = 1;
+    for (const wrapper of wrappers) {
+      if (wrapper.offsetTop <= viewportCenter) {
+        currentPage = parseInt(wrapper.getAttribute('data-page') ?? '1', 10);
+      }
+    }
+    this.pageInfoEl.setText(`${currentPage} / ${this.pdfDoc.numPages}`);
+  }
+
+  // ─── Page jump ────────────────────────────────────────────────────────────
+
+  private showPageJumpInput(): void {
+    if (!this.pdfDoc) return;
+
+    const current = this.pageInfoEl.getText().split('/')[0]?.trim() ?? '1';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = current;
+    input.min = '1';
+    input.max = String(this.pdfDoc.numPages);
+    input.className = 'pcai-page-jump-input';
+
+    this.pageInfoEl.empty();
+    this.pageInfoEl.appendChild(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const val = parseInt(input.value, 10);
+      if (!isNaN(val) && val >= 1 && val <= this.pdfDoc!.numPages) {
+        this.scrollToPage(val);
+      } else {
+        this.updateCurrentPageOnScroll();
+      }
+    };
+
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      } else if (e.key === 'Escape') {
+        this.updateCurrentPageOnScroll();
+      }
+    });
+    input.addEventListener('blur', () => commit());
+  }
+
+  // ─── Keyboard shortcuts ───────────────────────────────────────────────────
+
+  private handleKeyboard(e: KeyboardEvent): void {
+    // Don't capture when typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      this.toggleSearch();
+      return;
+    }
+
+    switch (e.key) {
+      case '+':
+      case '=':
+        e.preventDefault();
+        this.adjustZoom(0.25);
+        break;
+      case '-':
+        e.preventDefault();
+        this.adjustZoom(-0.25);
+        break;
+      case 'ArrowLeft':
+        if (!e.shiftKey) this.navigatePage(-1);
+        break;
+      case 'ArrowRight':
+        if (!e.shiftKey) this.navigatePage(1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        this.scrollToPage(1);
+        break;
+      case 'End':
+        if (this.pdfDoc) {
+          e.preventDefault();
+          this.scrollToPage(this.pdfDoc.numPages);
+        }
+        break;
+    }
+  }
+
+  // ─── Search ───────────────────────────────────────────────────────────────
+
+  private buildSearchBar(root: HTMLElement): void {
+    this.searchBarEl = root.createDiv('pcai-search-bar');
+    this.searchBarEl.style.display = 'none';
+
+    this.searchInputEl = this.searchBarEl.createEl('input', {
+      cls: 'pcai-search-input',
+      attr: { type: 'text', placeholder: 'Search in PDF\u2026' },
+    }) as HTMLInputElement;
+
+    const prevBtn = this.searchBarEl.createEl('button', { cls: 'pcai-icon-btn', text: '\u25B2' });
+    prevBtn.addEventListener('click', () => this.navigateSearch(-1));
+
+    const nextBtn = this.searchBarEl.createEl('button', { cls: 'pcai-icon-btn', text: '\u25BC' });
+    nextBtn.addEventListener('click', () => this.navigateSearch(1));
+
+    this.searchResultsEl = this.searchBarEl.createSpan({ cls: 'pcai-search-results-count' });
+
+    const closeBtn = this.searchBarEl.createEl('button', { cls: 'pcai-icon-btn', text: '\u00D7' });
+    closeBtn.addEventListener('click', () => this.toggleSearch());
+
+    this.searchInputEl.addEventListener('input', () => this.executeSearch());
+
+    this.searchInputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.navigateSearch(e.shiftKey ? -1 : 1);
+      } else if (e.key === 'Escape') {
+        this.toggleSearch();
+      }
+    });
+  }
+
+  private toggleSearch(): void {
+    this.searchOpen = !this.searchOpen;
+    this.searchBarEl.style.display = this.searchOpen ? 'flex' : 'none';
+    if (this.searchOpen) {
+      this.searchInputEl.focus();
+      this.searchInputEl.select();
+    } else {
+      this.clearSearchHighlights();
+      this.searchMatches = [];
+      this.searchCurrentIdx = -1;
+      this.searchResultsEl.setText('');
+    }
+  }
+
+  private async executeSearch(): Promise<void> {
+    const query = this.searchInputEl.value.trim().toLowerCase();
+    this.clearSearchHighlights();
+    this.searchMatches = [];
+    this.searchCurrentIdx = -1;
+
+    if (!query || !this.pdfDoc) {
+      this.searchResultsEl.setText('');
+      return;
+    }
+
+    for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+      try {
+        const page = await this.pdfDoc.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((item: any) => item.str ?? '')
+          .join(' ')
+          .toLowerCase();
+
+        let startIdx = 0;
+        while (true) {
+          const idx = pageText.indexOf(query, startIdx);
+          if (idx === -1) break;
+          this.searchMatches.push({ page: i, index: idx });
+          startIdx = idx + 1;
+        }
+      } catch {
+        // Skip unreadable pages
+      }
+    }
+
+    if (this.searchMatches.length > 0) {
+      this.searchCurrentIdx = 0;
+      this.searchResultsEl.setText(`1 / ${this.searchMatches.length}`);
+      this.highlightSearchMatch(this.searchMatches[0]);
+    } else {
+      this.searchResultsEl.setText('No results');
+    }
+  }
+
+  private navigateSearch(direction: number): void {
+    if (this.searchMatches.length === 0) return;
+    this.searchCurrentIdx = (this.searchCurrentIdx + direction + this.searchMatches.length) % this.searchMatches.length;
+    this.searchResultsEl.setText(`${this.searchCurrentIdx + 1} / ${this.searchMatches.length}`);
+    this.highlightSearchMatch(this.searchMatches[this.searchCurrentIdx]);
+  }
+
+  private highlightSearchMatch(match: { page: number; index: number }): void {
+    // Scroll to the page
+    this.scrollToPage(match.page);
+
+    // Highlight matching text spans in the text layer
+    this.clearSearchHighlights();
+    const wrapper = this.pagesEl.querySelector(`[data-page="${match.page}"]`);
+    if (!wrapper) return;
+    const textLayer = wrapper.querySelector('.textLayer');
+    if (!textLayer) return;
+
+    const spans = textLayer.querySelectorAll('span');
+    const query = this.searchInputEl.value.trim().toLowerCase();
+    for (const span of Array.from(spans)) {
+      if (span.textContent?.toLowerCase().includes(query)) {
+        span.addClass('pcai-search-highlight');
+      }
+    }
+  }
+
+  private clearSearchHighlights(): void {
+    this.pagesEl.querySelectorAll('.pcai-search-highlight').forEach((el) => {
+      el.removeClass('pcai-search-highlight');
+    });
+  }
+
+  // ─── PDF Outline / TOC ────────────────────────────────────────────────────
+
+  private buildOutlinePanel(root: HTMLElement): void {
+    this.outlineEl = root.createDiv('pcai-outline-panel');
+    this.outlineEl.style.display = 'none';
+  }
+
+  private async loadOutline(): Promise<void> {
+    if (!this.pdfDoc) return;
+    this.outlineEl.empty();
+
+    try {
+      const outline = await this.pdfDoc.getOutline();
+      if (!outline || outline.length === 0) {
+        this.outlineEl.createDiv({ cls: 'pcai-outline-empty', text: 'No bookmarks in this PDF' });
+        return;
+      }
+      this.renderOutlineItems(outline, this.outlineEl, 0);
+    } catch {
+      this.outlineEl.createDiv({ cls: 'pcai-outline-empty', text: 'Could not load outline' });
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private renderOutlineItems(items: any[], parent: HTMLElement, depth: number): void {
+    for (const item of items) {
+      const row = parent.createDiv({
+        cls: 'pcai-outline-item',
+      });
+      row.style.paddingLeft = `${12 + depth * 16}px`;
+      row.createSpan({ text: item.title ?? '(untitled)' });
+
+      row.addEventListener('click', () => {
+        this.navigateToOutlineItem(item);
+      });
+
+      if (item.items && item.items.length > 0) {
+        this.renderOutlineItems(item.items, parent, depth + 1);
+      }
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async navigateToOutlineItem(item: any): Promise<void> {
+    if (!this.pdfDoc) return;
+    try {
+      const dest = typeof item.dest === 'string'
+        ? await this.pdfDoc.getDestination(item.dest)
+        : item.dest;
+      if (!dest) return;
+
+      const pageIdx = await this.pdfDoc.getPageIndex(dest[0]);
+      this.scrollToPage(pageIdx + 1);
+    } catch {
+      // Some destinations can't be resolved
+    }
+  }
+
+  private toggleOutline(): void {
+    const isVisible = this.outlineEl.style.display !== 'none';
+    this.outlineEl.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      this.loadOutline();
+    }
   }
 
   // ─── Text selection ────────────────────────────────────────────────────────
