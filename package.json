@@ -1,0 +1,36 @@
+{
+  "name": "obsidian-pdf-canvas-ai",
+  "version": "0.1.0",
+  "description": "Obsidian plugin: Zotero-style PDF reader with highlights, annotations, AI chat, and canvas integration",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit && node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "pdf",
+    "annotations",
+    "highlights",
+    "ai",
+    "canvas"
+  ],
+  "author": "voidash",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/voidash/obsidian-pdf-canvas-ai.git"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "latest",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "nanoid": "^3.3.7",
+    "openai": "^6.25.0",
+    "pdfjs-dist": "3.11.174"
+  }
+}

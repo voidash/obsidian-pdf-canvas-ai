@@ -1,0 +1,1006 @@
+/*
+ * PDF Canvas AI
+ *
+ * Shared primitives are defined first (pages, highlights, selection toolbar).
+ * Then each context: sidebar, standalone viewer, canvas inline.
+ */
+
+
+/* ── Buttons ────────────────────────────────────── */
+
+.pcai-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+.pcai-icon-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+
+/* ── PDF pages ──────────────────────────────────── */
+
+.pcai-page-wrapper {
+  position: relative;
+  background: #fff;
+  flex-shrink: 0;
+}
+.pcai-page-placeholder {
+  background: var(--background-modifier-form-field);
+}
+.pcai-page-canvas {
+  display: block;
+  user-select: none;
+}
+.pcai-pdf-loading {
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+
+/* ── Text layer ─────────────────────────────────── */
+
+.pcai-page-wrapper .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  pointer-events: none;
+}
+.pcai-page-wrapper .textLayer > span,
+.pcai-page-wrapper .textLayer > br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  pointer-events: auto;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+.pcai-page-wrapper .textLayer ::selection {
+  background: rgba(0, 100, 255, 0.3);
+  color: transparent;
+}
+
+
+/* ── Highlights ─────────────────────────────────── */
+
+.pcai-annotation-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.pcai-highlight {
+  position: absolute;
+  opacity: 0.35;
+  border-radius: 2px;
+  pointer-events: auto;
+  cursor: pointer;
+  mix-blend-mode: multiply;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.pcai-highlight:hover {
+  opacity: 0.5;
+}
+@keyframes pcai-hl-flash {
+  0%   { opacity: 0.6; }
+  100% { opacity: 0.35; }
+}
+.pcai-highlight-new {
+  animation: pcai-hl-flash 0.4s ease-out;
+}
+
+
+/* ── Selection toolbar ──────────────────────────── */
+
+.pcai-sel-menu {
+  position: absolute;
+  display: none;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 9px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12),
+              0 1px 3px rgba(0, 0, 0, 0.06);
+  z-index: 100;
+  user-select: none;
+  font-family: var(--font-interface);
+  animation: pcai-menu-in 0.12s ease-out;
+  transform-origin: top left;
+}
+@keyframes pcai-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pcai-sel-colors {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.pcai-sel-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--dot-color) !important;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.pcai-sel-dot:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--background-primary),
+              0 0 0 3.5px var(--dot-color);
+}
+.pcai-sel-dot:active {
+  transform: scale(0.9);
+  transition-duration: 0.05s;
+}
+
+.pcai-sel-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--background-modifier-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.pcai-sel-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.pcai-sel-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11.5px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.pcai-sel-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.pcai-sel-btn--accent {
+  color: var(--interactive-accent);
+}
+.pcai-sel-btn--accent:hover {
+  background: rgba(var(--interactive-accent-rgb, 124, 58, 237), 0.1);
+  color: var(--interactive-accent);
+}
+
+
+/* ── AI sidebar ─────────────────────────────────── */
+
+.pcai-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+.pcai-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  flex-shrink: 0;
+}
+.pcai-sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+.pcai-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
+  flex-shrink: 0;
+}
+.pcai-context-label-prefix {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.pcai-context-active {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Header button group ─────────────────────────── */
+
+.pcai-header-btns {
+  display: flex;
+  gap: 2px;
+}
+
+/* ── Chat list ───────────────────────────────────── */
+
+.pcai-chat-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+.pcai-chat-list-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.pcai-chat-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: relative;
+}
+.pcai-chat-list-item:hover {
+  background: var(--background-modifier-hover);
+}
+.pcai-chat-list-item-active {
+  background: var(--background-primary-alt);
+  border-left: 3px solid var(--interactive-accent);
+  padding-left: 9px;
+}
+.pcai-chat-list-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 20px;
+}
+.pcai-chat-list-meta {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.pcai-chat-list-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.pcai-chat-list-item:hover .pcai-chat-list-delete {
+  opacity: 1;
+}
+.pcai-chat-list-delete:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-error);
+}
+
+/* ── Attachments bar ──────────────────────────────── */
+
+.pcai-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
+  flex-shrink: 0;
+}
+.pcai-attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  color: var(--text-muted);
+  max-width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.pcai-attach-remove {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-faint);
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+.pcai-attach-remove:hover {
+  color: var(--text-error, #e55);
+}
+
+/* ── @ mention dropdown ───────────────────────────── */
+
+.pcai-mention-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 150;
+  margin-bottom: 4px;
+}
+.pcai-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.06s ease;
+}
+.pcai-mention-item:hover,
+.pcai-mention-item-active {
+  background: var(--background-modifier-hover);
+}
+.pcai-mention-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.pcai-mention-name {
+  color: var(--text-normal);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pcai-mention-path {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: auto;
+}
+.pcai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.pcai-msg {
+  max-width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  word-break: break-word;
+}
+.pcai-msg-user {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  align-self: flex-end;
+  max-width: 88%;
+}
+.pcai-msg-assistant {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+}
+.pcai-msg-error {
+  background: rgba(255, 60, 60, 0.12);
+  color: var(--text-error, #ff5555);
+  border: 1px solid rgba(255, 60, 60, 0.25);
+}
+.pcai-msg-content {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.pcai-msg-user .pcai-msg-content {
+  white-space: pre-wrap;
+}
+
+/* ── Markdown in assistant messages ──────────────── */
+
+.pcai-markdown {
+  white-space: normal;
+}
+.pcai-markdown p {
+  margin: 0 0 0.5em;
+}
+.pcai-markdown p:last-child {
+  margin-bottom: 0;
+}
+.pcai-markdown h1,
+.pcai-markdown h2,
+.pcai-markdown h3,
+.pcai-markdown h4 {
+  margin: 0.8em 0 0.3em;
+  line-height: 1.3;
+}
+.pcai-markdown h1:first-child,
+.pcai-markdown h2:first-child,
+.pcai-markdown h3:first-child {
+  margin-top: 0;
+}
+.pcai-markdown ul,
+.pcai-markdown ol {
+  margin: 0.3em 0;
+  padding-left: 1.4em;
+}
+.pcai-markdown li {
+  margin: 0.15em 0;
+}
+.pcai-markdown code {
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--background-primary-alt);
+  font-family: var(--font-monospace);
+}
+.pcai-markdown pre {
+  margin: 0.5em 0;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--background-primary-alt);
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pcai-markdown pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+.pcai-markdown blockquote {
+  margin: 0.4em 0;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--interactive-accent);
+  color: var(--text-muted);
+}
+.pcai-markdown table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 12px;
+}
+.pcai-markdown th,
+.pcai-markdown td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.pcai-markdown th {
+  background: var(--background-primary-alt);
+  font-weight: 600;
+}
+.pcai-markdown hr {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 0.6em 0;
+}
+.pcai-markdown a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+.pcai-markdown a:hover {
+  text-decoration: underline;
+}
+.pcai-markdown strong {
+  font-weight: 600;
+}
+/* ── Tool call status ─────────────────────────────── */
+
+.pcai-tool-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+.pcai-tool-icon {
+  font-style: normal;
+  font-size: 12px;
+}
+
+@keyframes pcai-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+.pcai-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 13px;
+  background: currentColor;
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: pcai-blink 0.9s steps(1) infinite;
+}
+.pcai-input-area {
+  position: relative;
+  padding: 10px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex-shrink: 0;
+  background: var(--background-primary);
+}
+.pcai-input {
+  width: 100%;
+  resize: none;
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  color: var(--text-normal);
+  font-size: 13px;
+  padding: 7px 9px;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+.pcai-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 124, 58, 237), 0.18);
+}
+.pcai-input:disabled {
+  opacity: 0.55;
+}
+.pcai-btn-row {
+  display: flex;
+  justify-content: flex-end;
+}
+.pcai-send-btn {
+  padding: 5px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.pcai-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+/* ── Wide chat view (main editor area) ───────────── */
+
+.pcai-chat-wide .pcai-messages {
+  padding: 24px 32px;
+  align-items: center;
+}
+.pcai-chat-wide .pcai-msg {
+  max-width: 720px;
+  width: 100%;
+}
+.pcai-chat-wide .pcai-msg-user {
+  max-width: 620px;
+}
+.pcai-chat-wide .pcai-msg-content {
+  font-size: 14px;
+  line-height: 1.65;
+}
+.pcai-chat-wide .pcai-input-area {
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
+.pcai-chat-wide .pcai-input {
+  font-size: 14px;
+  min-height: 60px;
+}
+.pcai-chat-wide .pcai-tool-status {
+  max-width: 720px;
+  width: 100%;
+}
+.pcai-chat-wide .pcai-chat-list {
+  max-height: 340px;
+}
+
+/* ── PDF viewer (Zotero-style) ─────────────────── */
+
+.pcai-pdf-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background-secondary);
+  position: relative;
+}
+
+/* Split layout: library sidebar + viewer */
+.pcai-split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Library panel (left sidebar) ──────────────── */
+
+.pcai-library {
+  width: 240px;
+  min-width: 180px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.pcai-library-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pcai-library-section:first-child {
+  flex: 0 1 auto;
+  max-height: 45%;
+  overflow: hidden;
+}
+.pcai-annotations-section {
+  flex: 1;
+  border-top: 1px solid var(--background-modifier-border);
+  overflow: hidden;
+}
+.pcai-library-section-header {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.pcai-library-search {
+  margin: 0 8px 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  outline: none;
+  flex-shrink: 0;
+}
+.pcai-library-search:focus {
+  border-color: var(--interactive-accent);
+}
+
+/* File list */
+.pcai-file-list {
+  overflow-y: auto;
+  flex: 1;
+}
+.pcai-file-item {
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  transition: background 0.08s ease;
+  gap: 6px;
+}
+.pcai-file-item:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.pcai-file-item.pcai-file-active {
+  background: var(--background-modifier-active-hover, rgba(var(--interactive-accent-rgb, 124, 58, 237), 0.12));
+  color: var(--text-normal);
+  font-weight: 500;
+}
+.pcai-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pcai-file-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.pcai-file-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* Annotation list */
+.pcai-annotation-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 0 8px;
+}
+.pcai-anno-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+.pcai-anno-page-group {
+  margin-bottom: 2px;
+}
+.pcai-anno-page-label {
+  padding: 6px 12px 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.pcai-anno-card {
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.08s ease;
+}
+.pcai-anno-card:hover {
+  background: var(--background-modifier-hover);
+}
+.pcai-anno-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.pcai-anno-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot-color) !important;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.pcai-anno-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pcai-anno-note {
+  margin: 3px 0 0 17px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.35;
+}
+.pcai-anno-actions {
+  display: flex;
+  gap: 2px;
+  margin: 4px 0 0 17px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.pcai-anno-card:hover .pcai-anno-actions {
+  opacity: 1;
+}
+.pcai-anno-action {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.08s ease, color 0.08s ease;
+}
+.pcai-anno-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.pcai-anno-action--danger:hover {
+  color: var(--text-error, #e55);
+}
+
+/* Note edit overlay */
+.pcai-note-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.pcai-note-dialog {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 16px;
+  width: 320px;
+  max-width: 90%;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+.pcai-note-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-normal);
+}
+.pcai-note-textarea {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.pcai-note-textarea:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+.pcai-note-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.pcai-note-btn-row button {
+  padding: 5px 14px;
+  font-size: 13px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* ── Viewer panel (right side) ─────────────────── */
+
+.pcai-viewer-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pcai-pdf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.pcai-pdf-filename {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.pcai-pdf-nav,
+.pcai-pdf-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.pcai-pdf-page-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 6px;
+  user-select: none;
+}
+.pcai-ask-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.pcai-pdf-viewport {
+  flex: 1;
+  overflow: auto;
+  background: var(--background-secondary);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.pcai-pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 16px;
+}
+.pcai-pdf-root .pcai-page-wrapper {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12),
+              0 4px 16px rgba(0, 0, 0, 0.08);
+  border-radius: 2px;
+}
+
+
+/* ── Canvas inline PDF ──────────────────────────── */
+
+.pcai-canvas-pdf {
+  position: relative;
+  overflow: hidden;
+  height: 100% !important;
+}
+.pcai-canvas-scroll {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+.pcai-canvas-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px;
+  gap: 4px;
+}
+.pcai-canvas-pdf .pcai-page-wrapper {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* Disable the content blocker on injected PDF nodes */
+.canvas-node-container:has(.pcai-canvas-pdf) > .canvas-node-content-blocker {
+  pointer-events: none !important;
+}
+
+/* Force text selection inside canvas PDF */
+.pcai-canvas-pdf .textLayer > span {
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}

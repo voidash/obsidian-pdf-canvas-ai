@@ -1,0 +1,110 @@
+import type { Highlight, HighlightColor, PageRect } from '../types/annotations';
+import type PdfCanvasAiPlugin from '../main';
+import { nanoid } from 'nanoid';
+
+interface StoredData {
+  version: 1;
+  /** Map from vault-relative PDF path → array of highlights */
+  highlights: Record<string, Highlight[]>;
+}
+
+export class AnnotationStore {
+  private data: StoredData = { version: 1, highlights: {} };
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private plugin: PdfCanvasAiPlugin;
+
+  constructor(plugin: PdfCanvasAiPlugin) {
+    this.plugin = plugin;
+  }
+
+  async load(): Promise<void> {
+    const raw = await this.plugin.loadData();
+    if (raw?.version === 1 && typeof raw.highlights === 'object') {
+      this.data = raw as StoredData;
+    }
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.plugin.saveData(this.data).catch((e: unknown) => {
+        console.error('PDF Canvas AI: annotation save failed', e);
+      });
+    }, 500);
+  }
+
+  getForFile(pdfPath: string): Highlight[] {
+    return this.data.highlights[pdfPath] ?? [];
+  }
+
+  getForPage(pdfPath: string, pageNumber: number): Highlight[] {
+    return this.getForFile(pdfPath).filter((h) => h.pageNumber === pageNumber);
+  }
+
+  add(
+    pdfPath: string,
+    pageNumber: number,
+    text: string,
+    color: HighlightColor,
+    rects: PageRect[],
+  ): Highlight {
+    const highlight: Highlight = {
+      id: nanoid(),
+      pdfPath,
+      pageNumber,
+      text,
+      color,
+      rects,
+      createdAt: Date.now(),
+    };
+
+    if (!this.data.highlights[pdfPath]) {
+      this.data.highlights[pdfPath] = [];
+    }
+    this.data.highlights[pdfPath].push(highlight);
+    this.scheduleSave();
+    return highlight;
+  }
+
+  remove(id: string): void {
+    for (const path of Object.keys(this.data.highlights)) {
+      const arr = this.data.highlights[path];
+      const idx = arr.findIndex((h) => h.id === id);
+      if (idx !== -1) {
+        arr.splice(idx, 1);
+        if (arr.length === 0) delete this.data.highlights[path];
+        this.scheduleSave();
+        return;
+      }
+    }
+  }
+
+  updateNote(id: string, note: string): void {
+    for (const arr of Object.values(this.data.highlights)) {
+      const h = arr.find((h) => h.id === id);
+      if (h) {
+        h.note = note;
+        this.scheduleSave();
+        return;
+      }
+    }
+  }
+
+  destroy(): void {
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+  }
+
+  renameFile(oldPath: string, newPath: string): void {
+    if (this.data.highlights[oldPath]) {
+      this.data.highlights[newPath] = this.data.highlights[oldPath].map((h) => ({
+        ...h,
+        pdfPath: newPath,
+      }));
+      delete this.data.highlights[oldPath];
+      this.scheduleSave();
+    }
+  }
+}
