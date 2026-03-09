@@ -42,7 +42,7 @@ export class ProxyManager {
   }
 
   private async start(): Promise<void> {
-    const notice = new Notice('PDF Canvas AI: Starting AI proxy…', 0);
+    const notice = new Notice('PDF Tools: Starting AI proxy…', 0);
 
     // Use a login shell so the user's PATH (e.g. ~/.npm-global/bin, /usr/local/bin)
     // is available even when Obsidian is launched from the macOS dock.
@@ -72,14 +72,14 @@ export class ProxyManager {
       notice.hide();
       this.process = null;
       new Notice(
-        `PDF Canvas AI: Could not start proxy — ${err.message}\n` +
+        `PDF Tools: Could not start proxy — ${err.message}\n` +
           'Install with: npm install -g claude-max-api-proxy  (binary: claude-max-api)',
         10000,
       );
     });
 
     this.process.on('exit', (code) => {
-      console.log(`PDF Canvas AI: proxy exited (code ${code})`);
+      console.log(`PDF Tools: proxy exited (code ${code})`);
       this.process = null;
     });
 
@@ -87,11 +87,11 @@ export class ProxyManager {
     notice.hide();
 
     if (ready) {
-      new Notice('PDF Canvas AI: AI proxy ready.', 2000);
+      new Notice('PDF Tools: AI proxy ready.', 2000);
     } else if (this.process) {
       // Still running but not answering — might need more time; don't kill it.
       new Notice(
-        'PDF Canvas AI: Proxy is starting slowly — AI will be available shortly.',
+        'PDF Tools: Proxy is starting slowly — AI will be available shortly.',
         4000,
       );
     }

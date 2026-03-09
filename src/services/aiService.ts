@@ -97,7 +97,7 @@ export class AiService {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('PDF Canvas AI — streamChat error:', err);
+      console.error('PDF Tools — streamChat error:', err);
       onError(`API error: ${msg}`);
     }
   }
@@ -405,7 +405,7 @@ export class AiService {
       onDone();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('PDF Canvas AI — streamAnthropic error:', err);
+      console.error('PDF Tools — streamAnthropic error:', err);
       onError(`Anthropic API error: ${msg}`);
     }
   }

@@ -68,7 +68,7 @@ export class CanvasPdfInjector {
           const renderer = new CanvasInlinePdf(el, file, this.plugin, canvas, node);
           this.renderers.set(el, renderer);
           renderer.render().catch((e: unknown) => {
-            console.error('PDF Canvas AI — injection error:', e);
+            console.error('PDF Tools — injection error:', e);
             this.renderers.delete(el);
           });
           continue;
@@ -115,7 +115,7 @@ export class CanvasPdfInjector {
     );
     this.renderers.set(el, renderer);
     renderer.render().catch((e: unknown) => {
-      console.error('PDF Canvas AI — spread page injection error:', e);
+      console.error('PDF Tools — spread page injection error:', e);
       this.renderers.delete(el);
     });
   }

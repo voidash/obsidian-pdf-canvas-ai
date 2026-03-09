@@ -2,7 +2,7 @@ import type { WorkspaceLeaf } from 'obsidian';
 import type PdfCanvasAiPlugin from '../main';
 import { AiSidebarView } from './AiSidebarView';
 
-export const AI_CHAT_VIEW_TYPE = 'pdf-canvas-ai-chat';
+export const AI_CHAT_VIEW_TYPE = 'pdf-tools-chat';
 
 /**
  * Full-size chat view that opens in the main editor area.

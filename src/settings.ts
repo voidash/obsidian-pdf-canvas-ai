@@ -87,7 +87,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'PDF Canvas AI' });
+    containerEl.createEl('h2', { text: 'PDF Tools' });
 
     // ── Provider selector ──
     new Setting(containerEl)

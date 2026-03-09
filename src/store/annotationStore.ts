@@ -28,7 +28,7 @@ export class AnnotationStore {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       this.plugin.saveData(this.data).catch((e: unknown) => {
-        console.error('PDF Canvas AI: annotation save failed', e);
+        console.error('PDF Tools: annotation save failed', e);
       });
     }, 500);
   }

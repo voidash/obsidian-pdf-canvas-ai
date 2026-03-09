@@ -12,8 +12,8 @@ const require = createRequire(import.meta.url);
 const prod = process.argv[2] === 'production';
 
 const banner = `/*
-  PDF Canvas AI — Obsidian Plugin
-  Built with esbuild. Source: https://github.com/voidash/obsidian-pdf-canvas-ai
+  PDF Tools — Obsidian Plugin
+  Built with esbuild. Source: https://github.com/voidash/obsidian-pdf-tools
 */`;
 
 /**

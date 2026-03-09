@@ -4,7 +4,7 @@ import type { ChatMessage, StreamOptions } from '../services/aiService';
 import { VAULT_TOOLS, VaultToolExecutor } from '../services/vaultTools';
 import type { Conversation } from '../store/chatStore';
 
-export const AI_SIDEBAR_VIEW_TYPE = 'pdf-canvas-ai-sidebar';
+export const AI_SIDEBAR_VIEW_TYPE = 'pdf-tools-sidebar';
 
 /** Legacy scope values accepted for backward compat; context is always auto now. */
 export type ContextScope = string;
@@ -61,7 +61,7 @@ export class AiSidebarView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'PDF Canvas AI';
+    return 'PDF Tools';
   }
 
   getIcon(): string {
@@ -118,7 +118,7 @@ export class AiSidebarView extends ItemView {
     if (!leaf) {
       const candidates = [
         ...this.app.workspace.getLeavesOfType('canvas'),
-        ...this.app.workspace.getLeavesOfType('pdf-canvas-ai-viewer'),
+        ...this.app.workspace.getLeavesOfType('pdf-tools-viewer'),
         ...this.app.workspace.getLeavesOfType('markdown'),
       ];
       if (candidates.length > 0) {
@@ -140,7 +140,7 @@ export class AiSidebarView extends ItemView {
     }
 
     // Check if it's our PDF viewer
-    if (viewType === 'pdf-canvas-ai-viewer') {
+    if (viewType === 'pdf-tools-viewer') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pdfView = view as any;
       if (typeof pdfView.getCurrentFile === 'function') {
@@ -593,7 +593,7 @@ export class AiSidebarView extends ItemView {
           contextParts.push(`[Active file: ${activeFile.name}]\n${content}`);
         }
       } catch (err) {
-        console.error('PDF Canvas AI \u2014 auto context error:', err);
+        console.error('PDF Tools \u2014 auto context error:', err);
       }
     }
 
@@ -710,7 +710,7 @@ export class AiSidebarView extends ItemView {
 
         // Check if compaction is needed (background, non-blocking)
         this.maybeCompact(conv).catch((e) => {
-          console.error('PDF Canvas AI: compaction error', e);
+          console.error('PDF Tools: compaction error', e);
         });
       },
       (errorMsg) => {
@@ -779,7 +779,7 @@ export class AiSidebarView extends ItemView {
         },
         () => resolve(),
         (err) => {
-          console.error('PDF Canvas AI: compaction summarization failed:', err);
+          console.error('PDF Tools: compaction summarization failed:', err);
           resolve();
         },
       );

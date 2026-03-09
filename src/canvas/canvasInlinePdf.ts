@@ -162,7 +162,7 @@ export class CanvasInlinePdf {
           if (num > 0 && !this.renderedPages.has(num)) {
             this.renderedPages.add(num);
             this.renderPage(num).catch((e: unknown) => {
-              console.error('PDF Canvas AI — canvas renderPage error:', e);
+              console.error('PDF Tools — canvas renderPage error:', e);
             });
           }
         }
@@ -549,7 +549,7 @@ export class CanvasInlinePdf {
   private extractAsCard(): void {
     const text = this.selectedText;
     if (!text) {
-      new Notice('PDF Canvas AI: No text selected.');
+      new Notice('PDF Tools: No text selected.');
       return;
     }
 
@@ -592,7 +592,7 @@ export class CanvasInlinePdf {
         this.canvas.addNode(nodeData);
       } else {
         new Notice(
-          'PDF Canvas AI: Cannot create card — canvas API not available.',
+          'PDF Tools: Cannot create card — canvas API not available.',
         );
         return;
       }
@@ -602,10 +602,10 @@ export class CanvasInlinePdf {
         this.canvas.requestSave();
       }
 
-      new Notice('PDF Canvas AI: Concept card created.');
+      new Notice('PDF Tools: Concept card created.');
     } catch (err) {
-      console.error('PDF Canvas AI — extractAsCard error:', err);
-      new Notice('PDF Canvas AI: Failed to create card on canvas.');
+      console.error('PDF Tools — extractAsCard error:', err);
+      new Notice('PDF Tools: Failed to create card on canvas.');
     }
   }
 

@@ -93,11 +93,11 @@ export default class PdfCanvasAiPlugin extends Plugin {
     // Start the local proxy only if opt-in via settings
     if (this.settings.proxyAutoStart && this.settings.provider === 'local-proxy') {
       this.proxyManager.ensureRunning().catch((e: unknown) => {
-        console.error('PDF Canvas AI: proxyManager.ensureRunning error', e);
+        console.error('PDF Tools: proxyManager.ensureRunning error', e);
       });
     }
 
-    console.log('PDF Canvas AI: loaded');
+    console.log('PDF Tools: loaded');
   }
 
   async onunload(): Promise<void> {
@@ -106,7 +106,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     await this.chatStore.flush();
     this.chatStore.destroy();
     this.proxyManager.stop();
-    console.log('PDF Canvas AI: unloaded');
+    console.log('PDF Tools: unloaded');
   }
 
   async loadSettings(): Promise<void> {
@@ -146,21 +146,21 @@ export default class PdfCanvasAiPlugin extends Plugin {
   // ─── Ribbon ────────────────────────────────────────────────────────────────
 
   private addRibbonIcons(): void {
-    this.addRibbonIcon('bot', 'Open PDF Canvas AI sidebar', () => {
+    this.addRibbonIcon('bot', 'Open PDF Tools sidebar', () => {
       this.activateAiSidebar().catch((e: unknown) => {
-        console.error('PDF Canvas AI: activateAiSidebar error', e);
+        console.error('PDF Tools: activateAiSidebar error', e);
       });
     });
 
     this.addRibbonIcon('message-square', 'Open AI Chat', () => {
       this.activateAiChat().catch((e: unknown) => {
-        console.error('PDF Canvas AI: activateAiChat error', e);
+        console.error('PDF Tools: activateAiChat error', e);
       });
     });
 
     this.addRibbonIcon('file-text', 'Open PDF Viewer', () => {
       this.activatePdfViewer().catch((e: unknown) => {
-        console.error('PDF Canvas AI: activatePdfViewer error', e);
+        console.error('PDF Tools: activatePdfViewer error', e);
       });
     });
   }
@@ -255,8 +255,8 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .onClick(() => {
             new SpreadOptionsModal(this.app, (direction) => {
               this.spreadPdfPages(file, node, direction).catch((e: unknown) => {
-                console.error('PDF Canvas AI — spreadPdfPages error:', e);
-                new Notice('PDF Canvas AI: Failed to spread PDF pages.');
+                console.error('PDF Tools — spreadPdfPages error:', e);
+                new Notice('PDF Tools: Failed to spread PDF pages.');
               });
             }).open();
           }),
@@ -267,8 +267,8 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .setIcon('scissors')
           .onClick(() => {
             this.extractCurrentPage(file, node).catch((e: unknown) => {
-              console.error('PDF Canvas AI — extractCurrentPage error:', e);
-              new Notice('PDF Canvas AI: Failed to extract page.');
+              console.error('PDF Tools — extractCurrentPage error:', e);
+              new Notice('PDF Tools: Failed to extract page.');
             });
           }),
       );
@@ -329,7 +329,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const registry = (this.app as any).viewRegistry;
     if (!registry?.typeByExtension) {
-      console.warn('PDF Canvas AI: viewRegistry not found, PDF intercept unavailable');
+      console.warn('PDF Tools: viewRegistry not found, PDF intercept unavailable');
       return;
     }
 
@@ -408,7 +408,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const leaf = leaves[0];
     if (!leaf) {
       if (attempt >= 2) {
-        new Notice('PDF Canvas AI: Could not open PDF viewer pane.');
+        new Notice('PDF Tools: Could not open PDF viewer pane.');
         return;
       }
       await this.activatePdfViewer();
@@ -474,7 +474,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       return '[No PDF files found. Open a canvas with PDF nodes, or open a PDF in the viewer.]';
     }
 
-    const notice = new Notice(`PDF Canvas AI: Extracting text from ${nodes.length} PDF(s)…`, 0);
+    const notice = new Notice(`PDF Tools: Extracting text from ${nodes.length} PDF(s)…`, 0);
     try {
       const parts = await Promise.all(
         nodes.map(async ({ file }) => {
@@ -501,7 +501,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
     // Collect all node content
     if (canvas.nodes) {
-      const notice = new Notice('PDF Canvas AI: Reading canvas content...', 0);
+      const notice = new Notice('PDF Tools: Reading canvas content...', 0);
       try {
         for (const node of canvas.nodes.values()) {
           const nodeData = typeof node.getData === 'function' ? node.getData() : node;
@@ -567,7 +567,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async openSelectedCanvasPdf(): Promise<void> {
     const nodes = getSelectedPdfNodes(this.app);
     if (nodes.length === 0) {
-      new Notice('PDF Canvas AI: No PDF node selected on canvas.');
+      new Notice('PDF Tools: No PDF node selected on canvas.');
       return;
     }
     await this.activatePdfViewer();
@@ -578,7 +578,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     await this.activateAiSidebar();
     const view = this.getAiSidebarView();
     if (view) view.setContextScope('pdf');
-    new Notice('PDF Canvas AI: Context set. Type your question in the sidebar.');
+    new Notice('PDF Tools: Context set. Type your question in the sidebar.');
   }
 
   /**
@@ -591,7 +591,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async spreadPdfPages(file: TFile, node: any, direction: SpreadDirection): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF Canvas AI: No active canvas found.');
+      new Notice('PDF Tools: No active canvas found.');
       return;
     }
 
@@ -602,7 +602,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
     if (numPages === 0) {
       pdfDoc.destroy();
-      new Notice('PDF Canvas AI: PDF has no pages.');
+      new Notice('PDF Tools: PDF has no pages.');
       return;
     }
 
@@ -621,7 +621,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const pageHeight = Math.round(pageWidth * aspectRatio);
     const gap = 20;
 
-    const notice = new Notice(`PDF Canvas AI: Spreading ${numPages} pages…`, 0);
+    const notice = new Notice(`PDF Tools: Spreading ${numPages} pages…`, 0);
     try {
       // Remove the original node
       if (typeof canvas.removeNode === 'function') {
@@ -648,7 +648,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
             save: false,
           });
         } else {
-          new Notice('PDF Canvas AI: Canvas API not available.');
+          new Notice('PDF Tools: Canvas API not available.');
           return;
         }
       }
@@ -657,7 +657,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         canvas.requestSave();
       }
 
-      new Notice(`PDF Canvas AI: Spread ${numPages} pages on canvas.`);
+      new Notice(`PDF Tools: Spread ${numPages} pages on canvas.`);
     } finally {
       notice.hide();
     }
@@ -671,7 +671,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async extractCurrentPage(file: TFile, node: any): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF Canvas AI: No active canvas found.');
+      new Notice('PDF Tools: No active canvas found.');
       return;
     }
 
@@ -706,7 +706,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         focus: false,
       });
     } else {
-      new Notice('PDF Canvas AI: Canvas API not available.');
+      new Notice('PDF Tools: Canvas API not available.');
       return;
     }
 
@@ -714,7 +714,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       canvas.requestSave();
     }
 
-    new Notice(`PDF Canvas AI: Extracted page ${pageNum}.`);
+    new Notice(`PDF Tools: Extracted page ${pageNum}.`);
   }
 
   private async openFileInViewerAndAsk(file: TFile): Promise<void> {
@@ -771,7 +771,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     // Cap results
     const filesToInclude = matchingFiles.slice(0, 10);
 
-    const notice = new Notice(`PDF Canvas AI: Reading ${filesToInclude.length} vault files\u2026`, 0);
+    const notice = new Notice(`PDF Tools: Reading ${filesToInclude.length} vault files\u2026`, 0);
     try {
       for (const file of filesToInclude) {
         try {

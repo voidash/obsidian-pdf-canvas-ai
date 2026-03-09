@@ -45,7 +45,7 @@ export class PdfService {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('PDF Canvas AI — extractText error:', err);
+      console.error('PDF Tools — extractText error:', err);
       result = `[Error extracting text from ${file.name}: ${msg}]`;
     }
 

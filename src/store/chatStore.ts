@@ -45,7 +45,7 @@ export class ChatStore {
         }
       }
     } catch (e) {
-      console.error('PDF Canvas AI: failed to load conversations', e);
+      console.error('PDF Tools: failed to load conversations', e);
     }
   }
 
@@ -55,7 +55,7 @@ export class ChatStore {
       this.app.vault.adapter
         .write(this.filePath, JSON.stringify(this.data, null, 2))
         .catch((e: unknown) => {
-          console.error('PDF Canvas AI: conversation save failed', e);
+          console.error('PDF Tools: conversation save failed', e);
         });
     }, 500);
   }
@@ -69,7 +69,7 @@ export class ChatStore {
     try {
       await this.app.vault.adapter.write(this.filePath, JSON.stringify(this.data, null, 2));
     } catch (e) {
-      console.error('PDF Canvas AI: conversation flush failed', e);
+      console.error('PDF Tools: conversation flush failed', e);
     }
   }
 

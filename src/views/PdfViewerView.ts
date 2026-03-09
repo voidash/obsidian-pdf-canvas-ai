@@ -14,7 +14,7 @@ const POS_LABELS: Record<string, string> = {
   adv: 'adverb',
 };
 
-export const PDF_VIEWER_VIEW_TYPE = 'pdf-canvas-ai-viewer';
+export const PDF_VIEWER_VIEW_TYPE = 'pdf-tools-viewer';
 
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4.0;
@@ -174,7 +174,7 @@ export class PdfViewerView extends ItemView {
     } catch (err) {
       if (gen !== this.loadGeneration) return;
       loadingEl.setText(`Error loading PDF: ${err instanceof Error ? err.message : String(err)}`);
-      console.error('PDF Canvas AI \u2014 loadFile error:', err);
+      console.error('PDF Tools \u2014 loadFile error:', err);
       return;
     }
 
@@ -357,7 +357,7 @@ export class PdfViewerView extends ItemView {
 
       item.addEventListener('click', () => {
         this.loadFile(file).catch((e: unknown) =>
-          console.error('PDF Canvas AI \u2014 loadFile error:', e),
+          console.error('PDF Tools \u2014 loadFile error:', e),
         );
       });
 
@@ -636,8 +636,8 @@ export class PdfViewerView extends ItemView {
     copyBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       navigator.clipboard.writeText(this.selectedText).catch((err: unknown) => {
-        new Notice('PDF Canvas AI: Copy failed.');
-        console.error('PDF Canvas AI \u2014 clipboard error:', err);
+        new Notice('PDF Tools: Copy failed.');
+        console.error('PDF Tools \u2014 clipboard error:', err);
       });
       this.hideSelectionMenu();
       window.getSelection()?.removeAllRanges();
@@ -675,7 +675,7 @@ export class PdfViewerView extends ItemView {
           if (num > 0 && !this.renderedPages.has(num)) {
             this.renderedPages.add(num);
             this.renderPage(num).catch((e: unknown) => {
-              console.error('PDF Canvas AI \u2014 renderPage error:', e);
+              console.error('PDF Tools \u2014 renderPage error:', e);
             });
           }
         }
@@ -794,7 +794,7 @@ export class PdfViewerView extends ItemView {
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.currentScale + delta));
     if (newScale === this.currentScale) return;
     this.currentScale = newScale;
-    this.rerenderAllPages().catch((e: unknown) => console.error('PDF Canvas AI \u2014 zoom error:', e));
+    this.rerenderAllPages().catch((e: unknown) => console.error('PDF Tools \u2014 zoom error:', e));
   }
 
   private fitToWidth(): void {
@@ -803,8 +803,8 @@ export class PdfViewerView extends ItemView {
     this.pdfDoc.getPage(1).then((page) => {
       const naturalWidth = page.getViewport({ scale: 1 }).width;
       this.currentScale = viewportWidth / naturalWidth;
-      this.rerenderAllPages().catch((e: unknown) => console.error('PDF Canvas AI \u2014 fitToWidth error:', e));
-    }).catch((e: unknown) => console.error('PDF Canvas AI \u2014 fitToWidth error:', e));
+      this.rerenderAllPages().catch((e: unknown) => console.error('PDF Tools \u2014 fitToWidth error:', e));
+    }).catch((e: unknown) => console.error('PDF Tools \u2014 fitToWidth error:', e));
   }
 
   // ─── Current page tracking on scroll ────────────────────────────────────────
@@ -1264,7 +1264,7 @@ export class PdfViewerView extends ItemView {
       if (this.currentFile) view.setCurrentPdf(this.currentFile);
       view.setContextScope('pdf');
     }
-    new Notice('PDF Canvas AI: Type your question in the sidebar.');
+    new Notice('PDF Tools: Type your question in the sidebar.');
   }
 
   private async askAboutSelection(): Promise<void> {
@@ -1294,7 +1294,7 @@ export class PdfViewerView extends ItemView {
   // ─── Dictionary ──────────────────────────────────────────────────────────
 
   private static readonly DICT_DOWNLOAD_URL =
-    'https://github.com/voidash/obsidian-pdf-canvas-ai/releases/latest/download/dictionary.json';
+    'https://github.com/voidash/obsidian-pdf-tools/releases/latest/download/dictionary.json';
 
   /**
    * Loads the WordNet dictionary.json — tries local cache first, then
@@ -1316,14 +1316,14 @@ export class PdfViewerView extends ItemView {
 
     this.localDictLoading = true;
     const adapter = this.app.vault.adapter;
-    const dictPath = `${this.app.vault.configDir}/plugins/pdf-canvas-ai/dictionary.json`;
+    const dictPath = `${this.app.vault.configDir}/plugins/pdf-tools/dictionary.json`;
 
     // 1. Try reading from local cache
     try {
       const raw = await adapter.read(dictPath);
       if (raw) {
         this.localDict = JSON.parse(raw);
-        console.log(`PDF Canvas AI — loaded dictionary (${Object.keys(this.localDict!).length} words) from cache`);
+        console.log(`PDF Tools — loaded dictionary (${Object.keys(this.localDict!).length} words) from cache`);
         this.localDictLoading = false;
         return this.localDict!;
       }
@@ -1333,21 +1333,21 @@ export class PdfViewerView extends ItemView {
 
     // 2. Download from GitHub release
     try {
-      new Notice('PDF Canvas AI: Downloading dictionary (first-time setup)…');
+      new Notice('PDF Tools: Downloading dictionary (first-time setup)…');
       const response = await requestUrl({ url: PdfViewerView.DICT_DOWNLOAD_URL });
       if (response.status === 200 && response.text) {
         // Save to plugin dir for future use
         await adapter.write(dictPath, response.text);
         this.localDict = JSON.parse(response.text);
         const count = Object.keys(this.localDict!).length;
-        console.log(`PDF Canvas AI — downloaded dictionary (${count} words)`);
-        new Notice(`PDF Canvas AI: Dictionary ready (${count.toLocaleString()} words)`);
+        console.log(`PDF Tools — downloaded dictionary (${count} words)`);
+        new Notice(`PDF Tools: Dictionary ready (${count.toLocaleString()} words)`);
         this.localDictLoading = false;
         return this.localDict!;
       }
     } catch (err) {
-      console.warn('PDF Canvas AI — dictionary download failed:', err);
-      new Notice('PDF Canvas AI: Dictionary download failed. Using online fallback.');
+      console.warn('PDF Tools — dictionary download failed:', err);
+      new Notice('PDF Tools: Dictionary download failed. Using online fallback.');
     }
 
     this.localDictLoading = false;
@@ -1377,7 +1377,7 @@ export class PdfViewerView extends ItemView {
         return;
       }
     } catch (err) {
-      console.warn('PDF Canvas AI — local dictionary lookup error:', err);
+      console.warn('PDF Tools — local dictionary lookup error:', err);
     }
 
     // 2. Fallback to free API
@@ -1480,7 +1480,7 @@ export class PdfViewerView extends ItemView {
   private openFilePicker(): void {
     new PdfFileSuggestModal(this.app, (file) => {
       this.loadFile(file).catch((e: unknown) =>
-        console.error('PDF Canvas AI \u2014 loadFile error:', e),
+        console.error('PDF Tools \u2014 loadFile error:', e),
       );
     }).open();
   }

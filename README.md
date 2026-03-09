@@ -1,4 +1,4 @@
-# PDF Canvas AI
+# PDF Tools
 
 Obsidian plugin that turns your vault into a research workspace. Read and annotate PDFs with Zotero-style highlights, chat with AI about your documents, and organize everything on Obsidian's spatial canvas.
 
@@ -39,23 +39,23 @@ Obsidian plugin that turns your vault into a research workspace. Read and annota
 ### From Community Plugins (recommended)
 
 1. Open **Settings → Community plugins → Browse**
-2. Search for "PDF Canvas AI"
+2. Search for "PDF Tools"
 3. Click **Install**, then **Enable**
 
 ### Manual Installation
 
 ```bash
-git clone https://github.com/voidash/obsidian-pdf-canvas-ai.git
-cd obsidian-pdf-canvas-ai
+git clone https://github.com/voidash/obsidian-pdf-tools.git
+cd obsidian-pdf-tools
 npm install
 npm run build
 ```
 
-Copy `main.js`, `styles.css`, and `manifest.json` into your vault at `.obsidian/plugins/pdf-canvas-ai/`.
+Copy `main.js`, `styles.css`, and `manifest.json` into your vault at `.obsidian/plugins/pdf-tools/`.
 
 ## Configuration
 
-**Settings → PDF Canvas AI**
+**Settings → PDF Tools**
 
 | Setting | Default | Description |
 |---|---|---|
