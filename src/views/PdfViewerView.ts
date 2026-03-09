@@ -14,6 +14,14 @@ const POS_LABELS: Record<string, string> = {
   adv: 'adverb',
 };
 
+interface PdfMetadata {
+  title?: string;
+  author?: string;
+  subject?: string;
+  keywords?: string;
+  creationDate?: string;
+}
+
 export const PDF_VIEWER_VIEW_TYPE = 'pdf-tools-viewer';
 
 const MIN_SCALE = 0.5;
@@ -66,9 +74,17 @@ export class PdfViewerView extends ItemView {
   private pageTrackingObserver: IntersectionObserver | null = null;
   private visiblePages = new Set<number>();
 
+  // PDF metadata
+  private currentMetadata: PdfMetadata | null = null;
+  private metadataEl!: HTMLElement;
+
   // Color filter state
   private activeColorFilter: HighlightColor | null = null;
   private colorFilterEl!: HTMLElement;
+
+  // Cross-PDF annotation search
+  private annoSearchInputEl!: HTMLInputElement;
+  private annoSearchActive = false;
 
   // Embedded dictionary cache (loaded once from dictionary.json)
   private localDict: Record<string, [string, string][]> | null = null;
@@ -145,7 +161,16 @@ export class PdfViewerView extends ItemView {
 
     this.hideSelectionMenu();
     this.currentFile = file;
+    this.currentMetadata = null;
     const gen = ++this.loadGeneration;
+
+    // Clear cross-PDF annotation search when loading a new file
+    this.annoSearchActive = false;
+    if (this.annoSearchInputEl) {
+      this.annoSearchInputEl.value = '';
+      const clearBtn = this.annoSearchInputEl.parentElement?.querySelector('.pcai-anno-search-clear') as HTMLElement | null;
+      if (clearBtn) clearBtn.style.display = 'none';
+    }
 
     this.renderedPages.clear();
     this.pdfDoc?.destroy();
@@ -153,6 +178,8 @@ export class PdfViewerView extends ItemView {
     this.pageObserver?.disconnect();
     this.pagesEl.empty();
     this.filenameLabelEl.setText(file.name);
+    this.metadataEl.empty();
+    this.metadataEl.style.display = 'none';
     (this.leaf as unknown as { updateHeader?(): void }).updateHeader?.();
 
     // Highlight the active file in the library list
@@ -180,6 +207,26 @@ export class PdfViewerView extends ItemView {
 
     loadingEl.remove();
     this.pageInfoEl.setText(`0 / ${this.pdfDoc.numPages}`);
+
+    // Extract PDF metadata
+    try {
+      const metaResult = await this.pdfDoc.getMetadata();
+      if (gen !== this.loadGeneration) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const info = metaResult?.info as Record<string, any> | undefined;
+      if (info) {
+        this.currentMetadata = {
+          title: info.Title || undefined,
+          author: info.Author || undefined,
+          subject: info.Subject || undefined,
+          keywords: info.Keywords || undefined,
+          creationDate: info.CreationDate || undefined,
+        };
+        this.updateMetadataDisplay();
+      }
+    } catch (err) {
+      console.warn('PDF Tools: metadata extraction failed:', err);
+    }
 
     await this.createPagePlaceholders();
     if (gen !== this.loadGeneration) return;
@@ -250,6 +297,44 @@ export class PdfViewerView extends ItemView {
     const { content: annoContent } = this.createCollapsibleSection(
       this.libraryEl, 'Annotations', 'pcai-annotations-section',
     );
+
+    // Export + Summarize buttons row
+    const annoActionsRow = annoContent.createDiv({ cls: 'pcai-anno-header-actions' });
+
+    const exportBtn = annoActionsRow.createEl('button', {
+      cls: 'pcai-icon-btn pcai-anno-header-btn clickable-icon',
+      attr: { 'aria-label': 'Export annotations to Markdown' },
+    });
+    setIcon(exportBtn, 'download');
+    exportBtn.addEventListener('click', () => this.exportAnnotations());
+
+    const summarizeBtn = annoActionsRow.createEl('button', {
+      cls: 'pcai-icon-btn pcai-anno-header-btn clickable-icon',
+      attr: { 'aria-label': 'Summarize annotations with AI' },
+    });
+    setIcon(summarizeBtn, 'sparkles');
+    summarizeBtn.addEventListener('click', () => this.summarizeAnnotations());
+
+    // Cross-PDF annotation search
+    const annoSearchRow = annoContent.createDiv({ cls: 'pcai-anno-search-row' });
+    this.annoSearchInputEl = annoSearchRow.createEl('input', {
+      cls: 'pcai-anno-search-input',
+      attr: { type: 'text', placeholder: 'Search all annotations\u2026' },
+    }) as HTMLInputElement;
+    this.annoSearchInputEl.addEventListener('input', () => this.onAnnoSearchInput());
+
+    const annoSearchClearBtn = annoSearchRow.createEl('button', {
+      cls: 'pcai-icon-btn pcai-anno-search-clear clickable-icon',
+      attr: { 'aria-label': 'Clear search' },
+    });
+    setIcon(annoSearchClearBtn, 'x');
+    annoSearchClearBtn.style.display = 'none';
+    annoSearchClearBtn.addEventListener('click', () => {
+      this.annoSearchInputEl.value = '';
+      annoSearchClearBtn.style.display = 'none';
+      this.annoSearchActive = false;
+      this.refreshAnnotations();
+    });
 
     // Color filter row
     this.colorFilterEl = annoContent.createDiv('pcai-color-filter-row');
@@ -335,17 +420,21 @@ export class PdfViewerView extends ItemView {
 
     for (const file of pdfFiles) {
       const item = this.fileListEl.createDiv({
-        cls: 'pcai-file-item',
+        cls: 'pcai-file-item-wrapper',
         attr: { 'data-path': file.path },
+      });
+
+      const row = item.createDiv({
+        cls: 'pcai-file-item',
       });
 
       // Show annotation count as a subtle badge
       const annotations = this.plugin.annotationStore.getForFile(file.path);
       const hasAnnotations = annotations.length > 0;
 
-      item.createSpan({ cls: 'pcai-file-name', text: file.basename });
+      row.createSpan({ cls: 'pcai-file-name', text: file.basename });
       if (hasAnnotations) {
-        item.createSpan({
+        row.createSpan({
           cls: 'pcai-file-badge',
           text: String(annotations.length),
         });
@@ -355,11 +444,21 @@ export class PdfViewerView extends ItemView {
         item.addClass('pcai-file-active');
       }
 
-      item.addEventListener('click', () => {
+      row.addEventListener('click', () => {
         this.loadFile(file).catch((e: unknown) =>
           console.error('PDF Tools \u2014 loadFile error:', e),
         );
       });
+
+      // Reading progress bar
+      const progress = this.plugin.annotationStore.getReadingProgress(file.path);
+      if (progress && progress.totalPages > 0) {
+        const pct = Math.min(100, Math.round((progress.lastPage / progress.totalPages) * 100));
+        const progressBar = item.createDiv({ cls: 'pcai-file-progress' });
+        const fill = progressBar.createDiv({ cls: 'pcai-file-progress-fill' });
+        fill.style.width = `${pct}%`;
+        progressBar.title = `${pct}% read (page ${progress.lastPage}/${progress.totalPages})`;
+      }
 
       // Tooltip with full path
       item.title = file.path;
@@ -367,7 +466,7 @@ export class PdfViewerView extends ItemView {
   }
 
   private highlightActiveFile(): void {
-    this.fileListEl.querySelectorAll('.pcai-file-item').forEach((el) => {
+    this.fileListEl.querySelectorAll('.pcai-file-item-wrapper').forEach((el) => {
       el.removeClass('pcai-file-active');
       if (el.getAttribute('data-path') === this.currentFile?.path) {
         el.addClass('pcai-file-active');
@@ -378,6 +477,9 @@ export class PdfViewerView extends ItemView {
   // ─── Annotations panel ─────────────────────────────────────────────────────
 
   refreshAnnotations(): void {
+    // If cross-PDF search is active, don't overwrite search results
+    if (this.annoSearchActive) return;
+
     this.annotationsEl.empty();
 
     if (!this.currentFile) {
@@ -551,7 +653,11 @@ export class PdfViewerView extends ItemView {
     setIcon(openBtn, 'folder-open');
     openBtn.addEventListener('click', () => this.openFilePicker());
 
-    this.filenameLabelEl = bar.createSpan({ cls: 'pcai-pdf-filename', text: 'Select a PDF' });
+    // Filename + metadata container
+    const nameBlock = bar.createDiv({ cls: 'pcai-pdf-name-block' });
+    this.filenameLabelEl = nameBlock.createSpan({ cls: 'pcai-pdf-filename', text: 'Select a PDF' });
+    this.metadataEl = nameBlock.createDiv({ cls: 'pcai-pdf-metadata' });
+    this.metadataEl.style.display = 'none';
 
     const navGroup = bar.createDiv('pcai-pdf-nav');
 
@@ -588,6 +694,10 @@ export class PdfViewerView extends ItemView {
     const outlineBtn = bar.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Table of contents' } });
     setIcon(outlineBtn, 'list');
     outlineBtn.addEventListener('click', () => this.toggleOutline());
+
+    const canvasBtn = bar.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Add to Canvas' } });
+    setIcon(canvasBtn, 'layout-dashboard');
+    canvasBtn.addEventListener('click', () => this.addCurrentPdfToCanvas());
 
     const aiBtn = bar.createEl('button', { cls: 'pcai-ask-btn mod-cta', text: 'Ask AI' });
     aiBtn.addEventListener('click', () => this.askAboutCurrentPdf());
@@ -822,6 +932,15 @@ export class PdfViewerView extends ItemView {
       }
     }
     this.pageInfoEl.setText(`${currentPage} / ${this.pdfDoc.numPages}`);
+
+    // Update reading progress
+    if (this.currentFile) {
+      this.plugin.annotationStore.updateReadingProgress(
+        this.currentFile.path,
+        currentPage,
+        this.pdfDoc.numPages,
+      );
+    }
   }
 
   // ─── Page jump ────────────────────────────────────────────────────────────
@@ -1289,6 +1408,286 @@ export class PdfViewerView extends ItemView {
       view.prefillQuestion(`Regarding this highlighted passage:\n\n> ${h.text}\n\n`);
       view.setContextScope('pdf');
     }
+  }
+
+  // ─── Metadata display ──────────────────────────────────────────────────────
+
+  private updateMetadataDisplay(): void {
+    this.metadataEl.empty();
+    if (!this.currentMetadata) {
+      this.metadataEl.style.display = 'none';
+      return;
+    }
+
+    const meta = this.currentMetadata;
+
+    // If metadata has a title, show it instead of the filename
+    if (meta.title) {
+      this.filenameLabelEl.setText(meta.title);
+    }
+
+    // Build metadata subtitle line (author + year)
+    const parts: string[] = [];
+    if (meta.author) parts.push(meta.author);
+    if (meta.creationDate) {
+      const year = this.parseCreationDateYear(meta.creationDate);
+      if (year) parts.push(year);
+    }
+
+    if (parts.length > 0) {
+      this.metadataEl.style.display = 'block';
+      this.metadataEl.createSpan({
+        cls: 'pcai-pdf-meta-text',
+        text: parts.join(' \u00B7 '),
+      });
+    }
+
+    // Tooltip with full metadata
+    const tooltipParts: string[] = [];
+    if (meta.title) tooltipParts.push(`Title: ${meta.title}`);
+    if (meta.author) tooltipParts.push(`Author: ${meta.author}`);
+    if (meta.subject) tooltipParts.push(`Subject: ${meta.subject}`);
+    if (meta.keywords) tooltipParts.push(`Keywords: ${meta.keywords}`);
+    if (meta.creationDate) tooltipParts.push(`Created: ${meta.creationDate}`);
+    if (tooltipParts.length > 0) {
+      this.metadataEl.title = tooltipParts.join('\n');
+    }
+  }
+
+  private parseCreationDateYear(dateStr: string): string | null {
+    // PDF date format: D:YYYYMMDDHHmmSS or just a date string
+    const pdfDateMatch = dateStr.match(/D:(\d{4})/);
+    if (pdfDateMatch) return pdfDateMatch[1];
+
+    const yearMatch = dateStr.match(/(\d{4})/);
+    return yearMatch ? yearMatch[1] : null;
+  }
+
+  // ─── Annotation export ──────────────────────────────────────────────────────
+
+  private async exportAnnotations(): Promise<void> {
+    if (!this.currentFile) {
+      new Notice('PDF Tools: No PDF open.');
+      return;
+    }
+
+    const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
+    if (highlights.length === 0) {
+      new Notice('PDF Tools: No annotations to export.');
+      return;
+    }
+
+    const labels = this.plugin.settings.colorLabels ?? DEFAULT_COLOR_LABELS;
+    const title = this.currentMetadata?.title ?? this.currentFile.basename;
+    const author = this.currentMetadata?.author;
+    const totalPages = this.pdfDoc?.numPages ?? 0;
+
+    // Group highlights by page
+    const byPage = new Map<number, Highlight[]>();
+    for (const h of highlights) {
+      const arr = byPage.get(h.pageNumber) ?? [];
+      arr.push(h);
+      byPage.set(h.pageNumber, arr);
+    }
+    const sortedPages = [...byPage.keys()].sort((a, b) => a - b);
+
+    // Build markdown content
+    const lines: string[] = [];
+    lines.push(`# Annotations: ${title}`);
+    const metaParts: string[] = [];
+    if (author) metaParts.push(`**Author:** ${author}`);
+    if (totalPages > 0) metaParts.push(`**Pages:** ${totalPages}`);
+    if (metaParts.length > 0) lines.push(metaParts.join('  '));
+    lines.push('');
+
+    for (const page of sortedPages) {
+      lines.push(`## Page ${page}`);
+      lines.push('');
+      const pageHighlights = byPage.get(page)!;
+      for (const h of pageHighlights) {
+        const colorLabel = labels[h.color] ?? h.color;
+        lines.push(`> [!${colorLabel}] ${h.text}`);
+        if (h.note) {
+          lines.push(`> *Note: ${h.note}*`);
+        }
+        lines.push('');
+      }
+    }
+
+    lines.push('---');
+    const dateStr = new Date().toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    lines.push(`*Exported from PDF Tools on ${dateStr}*`);
+    lines.push('');
+
+    const content = lines.join('\n');
+
+    // Determine output path: same directory as PDF, with " - Annotations.md" suffix
+    const pdfDir = this.currentFile.parent?.path ?? '';
+    const baseName = this.currentFile.basename;
+    const mdPath = pdfDir
+      ? `${pdfDir}/${baseName} - Annotations.md`
+      : `${baseName} - Annotations.md`;
+
+    try {
+      // Check if file already exists
+      const existing = this.app.vault.getAbstractFileByPath(mdPath);
+      if (existing instanceof TFile) {
+        await this.app.vault.modify(existing, content);
+        new Notice(`PDF Tools: Updated "${mdPath}".`);
+        await this.app.workspace.getLeaf('tab').openFile(existing);
+      } else {
+        const newFile = await this.app.vault.create(mdPath, content);
+        new Notice(`PDF Tools: Created "${mdPath}".`);
+        await this.app.workspace.getLeaf('tab').openFile(newFile);
+      }
+    } catch (err) {
+      console.error('PDF Tools: annotation export error:', err);
+      new Notice(`PDF Tools: Export failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ─── AI annotation summary ────────────────────────────────────────────────
+
+  private async summarizeAnnotations(): Promise<void> {
+    if (!this.currentFile) {
+      new Notice('PDF Tools: No PDF open.');
+      return;
+    }
+
+    const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
+    if (highlights.length === 0) {
+      new Notice('PDF Tools: No annotations to summarize.');
+      return;
+    }
+
+    const labels = this.plugin.settings.colorLabels ?? DEFAULT_COLOR_LABELS;
+    const filename = this.currentMetadata?.title ?? this.currentFile.basename;
+
+    // Build the annotation text for the AI
+    const annoLines: string[] = [];
+    for (const h of highlights) {
+      const colorLabel = labels[h.color] ?? h.color;
+      let line = `Page ${h.pageNumber} [${colorLabel}]: "${h.text}"`;
+      if (h.note) line += ` (Note: ${h.note})`;
+      annoLines.push(line);
+    }
+
+    const prompt = [
+      `Summarize these annotations from "${filename}":`,
+      '',
+      ...annoLines,
+      '',
+      'Please provide a structured summary organized by theme, highlighting key concepts and connections between annotations.',
+    ].join('\n');
+
+    await this.plugin.activateAiSidebar();
+    const view = this.plugin.getAiSidebarView();
+    if (view) {
+      if (this.currentFile) view.setCurrentPdf(this.currentFile);
+      view.prefillQuestion(prompt);
+      view.setContextScope('pdf');
+    }
+  }
+
+  // ─── Cross-PDF annotation search ──────────────────────────────────────────
+
+  private onAnnoSearchInput(): void {
+    const query = this.annoSearchInputEl.value.trim().toLowerCase();
+    const clearBtn = this.annoSearchInputEl.parentElement?.querySelector('.pcai-anno-search-clear') as HTMLElement | null;
+
+    if (!query) {
+      this.annoSearchActive = false;
+      if (clearBtn) clearBtn.style.display = 'none';
+      this.refreshAnnotations();
+      return;
+    }
+
+    this.annoSearchActive = true;
+    if (clearBtn) clearBtn.style.display = 'flex';
+
+    const allHighlights = this.plugin.annotationStore.getAllHighlights();
+    const matches = allHighlights.filter((h) =>
+      h.text.toLowerCase().includes(query) ||
+      (h.note?.toLowerCase().includes(query) ?? false),
+    );
+
+    this.renderCrossPdfSearchResults(matches);
+  }
+
+  private renderCrossPdfSearchResults(highlights: Highlight[]): void {
+    this.annotationsEl.empty();
+
+    if (highlights.length === 0) {
+      this.annotationsEl.createDiv({
+        cls: 'pcai-anno-empty',
+        text: 'No matching annotations found.',
+      });
+      return;
+    }
+
+    // Group by file
+    const byFile = new Map<string, Highlight[]>();
+    for (const h of highlights) {
+      const arr = byFile.get(h.pdfPath) ?? [];
+      arr.push(h);
+      byFile.set(h.pdfPath, arr);
+    }
+
+    for (const [pdfPath, fileHighlights] of byFile) {
+      const fileGroup = this.annotationsEl.createDiv('pcai-anno-search-group');
+      const basename = pdfPath.split('/').pop()?.replace(/\.pdf$/i, '') ?? pdfPath;
+      fileGroup.createDiv({
+        cls: 'pcai-anno-search-file-label',
+        text: basename,
+        attr: { title: pdfPath },
+      });
+
+      for (const h of fileHighlights) {
+        const card = fileGroup.createDiv('pcai-anno-card');
+        card.addEventListener('click', () => {
+          // Load the PDF and scroll to the page
+          const file = this.app.vault.getAbstractFileByPath(h.pdfPath);
+          if (file instanceof TFile) {
+            this.loadFile(file).then(() => {
+              this.scrollToPage(h.pageNumber);
+            }).catch((e: unknown) => {
+              console.error('PDF Tools: cross-search navigate error:', e);
+            });
+          }
+        });
+
+        const row = card.createDiv('pcai-anno-row');
+        const dot = row.createSpan('pcai-anno-dot');
+        dot.style.setProperty('--dot-color', COLOR_HEX[h.color]);
+
+        const textCol = row.createDiv({ cls: 'pcai-anno-search-text-col' });
+        textCol.createSpan({
+          cls: 'pcai-anno-text',
+          text: h.text.length > 100 ? h.text.slice(0, 100) + '\u2026' : h.text,
+        });
+        textCol.createSpan({
+          cls: 'pcai-anno-search-page',
+          text: `p. ${h.pageNumber}`,
+        });
+      }
+    }
+  }
+
+  // ─── Canvas quick-link ────────────────────────────────────────────────────
+
+  private addCurrentPdfToCanvas(): void {
+    if (!this.currentFile) {
+      new Notice('PDF Tools: No PDF open.');
+      return;
+    }
+    this.plugin.addToCanvas(this.currentFile).catch((e: unknown) => {
+      console.error('PDF Tools: addToCanvas error:', e);
+      new Notice('PDF Tools: Failed to add PDF to canvas.');
+    });
   }
 
   // ─── Dictionary ──────────────────────────────────────────────────────────

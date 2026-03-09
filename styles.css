@@ -1318,3 +1318,128 @@
   margin-top: 4px;
   color: var(--text-muted);
 }
+
+
+/* ── PDF metadata display ──────────────────────── */
+
+.pcai-pdf-name-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+.pcai-pdf-metadata {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pcai-pdf-meta-text {
+  color: var(--text-faint);
+}
+
+
+/* ── File list progress bar ────────────────────── */
+
+.pcai-file-item-wrapper {
+  position: relative;
+}
+.pcai-file-item-wrapper.pcai-file-active > .pcai-file-item {
+  background: var(--background-modifier-active-hover, rgba(var(--interactive-accent-rgb, 124, 58, 237), 0.12));
+  color: var(--text-normal);
+  font-weight: 500;
+}
+.pcai-file-progress {
+  height: 2px;
+  background: var(--background-modifier-border);
+  margin: 0 12px 2px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.pcai-file-progress-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  border-radius: 1px;
+  transition: width 0.3s ease;
+}
+
+
+/* ── Annotation section header actions ─────────── */
+
+.pcai-anno-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 2px;
+  flex-shrink: 0;
+}
+.pcai-anno-header-btn {
+  padding: 3px;
+}
+.pcai-anno-header-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+
+/* ── Annotation search input ──────────────────── */
+
+.pcai-anno-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+.pcai-anno-search-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  outline: none;
+  min-width: 0;
+}
+.pcai-anno-search-input:focus {
+  border-color: var(--interactive-accent);
+}
+.pcai-anno-search-clear {
+  padding: 2px;
+  flex-shrink: 0;
+}
+.pcai-anno-search-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+
+/* ── Cross-PDF search results ─────────────────── */
+
+.pcai-anno-search-group {
+  margin-bottom: 4px;
+}
+.pcai-anno-search-file-label {
+  padding: 6px 12px 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--interactive-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pcai-anno-search-text-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.pcai-anno-search-page {
+  font-size: 10px;
+  color: var(--text-faint);
+}

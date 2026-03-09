@@ -2,14 +2,22 @@ import type { Highlight, HighlightColor, PageRect } from '../types/annotations';
 import type PdfCanvasAiPlugin from '../main';
 import { nanoid } from 'nanoid';
 
+export interface ReadingProgress {
+  lastPage: number;
+  totalPages: number;
+  lastOpened: number; // timestamp
+}
+
 interface StoredData {
   version: 1;
   /** Map from vault-relative PDF path → array of highlights */
   highlights: Record<string, Highlight[]>;
+  /** Map from vault-relative PDF path → reading progress */
+  readingProgress: Record<string, ReadingProgress>;
 }
 
 export class AnnotationStore {
-  private data: StoredData = { version: 1, highlights: {} };
+  private data: StoredData = { version: 1, highlights: {}, readingProgress: {} };
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private plugin: PdfCanvasAiPlugin;
 
@@ -21,6 +29,10 @@ export class AnnotationStore {
     const raw = await this.plugin.loadData();
     if (raw?.version === 1 && typeof raw.highlights === 'object') {
       this.data = raw as StoredData;
+      // Ensure readingProgress exists (migration from older data)
+      if (!this.data.readingProgress) {
+        this.data.readingProgress = {};
+      }
     }
   }
 
@@ -90,6 +102,31 @@ export class AnnotationStore {
     }
   }
 
+  getAllHighlights(): Highlight[] {
+    const all: Highlight[] = [];
+    for (const arr of Object.values(this.data.highlights)) {
+      all.push(...arr);
+    }
+    return all;
+  }
+
+  updateReadingProgress(pdfPath: string, lastPage: number, totalPages: number): void {
+    this.data.readingProgress[pdfPath] = {
+      lastPage,
+      totalPages,
+      lastOpened: Date.now(),
+    };
+    this.scheduleSave();
+  }
+
+  getReadingProgress(pdfPath: string): ReadingProgress | undefined {
+    return this.data.readingProgress[pdfPath];
+  }
+
+  getAllReadingProgress(): Record<string, ReadingProgress> {
+    return this.data.readingProgress;
+  }
+
   destroy(): void {
     if (this.saveTimer !== null) {
       clearTimeout(this.saveTimer);
@@ -98,13 +135,20 @@ export class AnnotationStore {
   }
 
   renameFile(oldPath: string, newPath: string): void {
+    let changed = false;
     if (this.data.highlights[oldPath]) {
       this.data.highlights[newPath] = this.data.highlights[oldPath].map((h) => ({
         ...h,
         pdfPath: newPath,
       }));
       delete this.data.highlights[oldPath];
-      this.scheduleSave();
+      changed = true;
     }
+    if (this.data.readingProgress[oldPath]) {
+      this.data.readingProgress[newPath] = this.data.readingProgress[oldPath];
+      delete this.data.readingProgress[oldPath];
+      changed = true;
+    }
+    if (changed) this.scheduleSave();
   }
 }

@@ -717,6 +717,73 @@ export default class PdfCanvasAiPlugin extends Plugin {
     new Notice(`PDF Tools: Extracted page ${pageNum}.`);
   }
 
+  async addToCanvas(file: TFile): Promise<void> {
+    const canvas = this.getActiveCanvas();
+    if (!canvas) {
+      new Notice('PDF Tools: No active canvas. Open a canvas first.');
+      return;
+    }
+
+    if (typeof canvas.createFileNode !== 'function') {
+      new Notice('PDF Tools: Canvas API not available.');
+      return;
+    }
+
+    // Find a sensible position — center of the current viewport or (0,0)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vp = typeof canvas.getViewportCenter === 'function' ? canvas.getViewportCenter() : null;
+    const cx = vp?.x ?? 0;
+    const cy = vp?.y ?? 0;
+
+    const pdfWidth = 400;
+    const pdfHeight = 500;
+    const textWidth = 300;
+    const textHeight = 200;
+    const gap = 40;
+
+    // Create PDF file node
+    const pdfNode = canvas.createFileNode({
+      pos: { x: cx - pdfWidth / 2, y: cy - pdfHeight / 2 },
+      size: { width: pdfWidth, height: pdfHeight },
+      file,
+      save: false,
+    });
+
+    // Create connected text node to the right
+    const textNode = canvas.createTextNode({
+      pos: { x: cx + pdfWidth / 2 + gap, y: cy - textHeight / 2 },
+      size: { width: textWidth, height: textHeight },
+      text: `Notes: ${file.basename}`,
+      focus: false,
+      save: false,
+    });
+
+    // Create edge between them if the API supports it
+    if (typeof canvas.createEdge === 'function' && pdfNode && textNode) {
+      try {
+        const fromId = pdfNode.id ?? (typeof pdfNode.getData === 'function' ? pdfNode.getData().id : null);
+        const toId = textNode.id ?? (typeof textNode.getData === 'function' ? textNode.getData().id : null);
+        if (fromId && toId) {
+          canvas.createEdge({
+            fromNode: pdfNode,
+            fromSide: 'right',
+            toNode: textNode,
+            toSide: 'left',
+            save: false,
+          });
+        }
+      } catch (err) {
+        console.warn('PDF Tools: Could not create edge between nodes:', err);
+      }
+    }
+
+    if (typeof canvas.requestSave === 'function') {
+      canvas.requestSave();
+    }
+
+    new Notice(`PDF Tools: Added "${file.basename}" to canvas.`);
+  }
+
   private async openFileInViewerAndAsk(file: TFile): Promise<void> {
     await this.activatePdfViewer();
     await this.openFileInViewer(file);
