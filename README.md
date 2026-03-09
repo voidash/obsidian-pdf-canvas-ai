@@ -59,22 +59,39 @@ Copy `main.js`, `styles.css`, and `manifest.json` into your vault at `.obsidian/
 
 | Setting | Default | Description |
 |---|---|---|
-| AI Provider | OpenAI | OpenAI, Anthropic, Local Proxy, or Custom |
-| API Key | *(empty)* | Your API key (leave empty for local proxies) |
-| Model | `gpt-4o` | Model identifier |
-| API Base URL | `https://api.openai.com/v1` | Endpoint URL |
+| Enable AI | On | Turn off to use as a pure PDF reader/annotator |
+| AI Provider | OpenAI | 15 providers: OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Mistral, OpenRouter, Together AI, Fireworks AI, Cerebras, Ollama, LM Studio, Local Proxy, Custom |
+| API Key | *(empty)* | Your API key (leave empty for local providers) |
+| Model | `gpt-4o` | Model identifier (auto-filled per provider) |
+| API Base URL | `https://api.openai.com/v1` | Endpoint URL (auto-filled per provider) |
 | Max context chars | `80000` | Document text truncation limit |
 | System prompt | *(built-in)* | AI instructions |
-| Highlight color labels | Important, Key Point, Definition, Question, Disagree | Meaning assigned to each color (yellow, green, blue, pink, red) |
+| Default zoom | `1.5` | Initial zoom level for PDF viewer (0.5–4.0) |
+| Default highlight color | Yellow | Pre-selected highlight color |
+| Resume reading position | On | Scroll to last read page on open |
+| Export format | Callout | Annotation export: callout blocks or plain markdown |
+| Dictionary source | Auto | Local WordNet, online API, or auto (local + fallback) |
+| Highlight color labels | Important, Key Point, Definition, Question, Disagree | Meaning assigned to each color |
 
-### Provider Examples
+### Supported Providers
 
-| Provider | Base URL | Model |
+| Provider | Base URL | Default Model |
 |---|---|---|
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o` |
 | Anthropic | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-pro` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| xAI (Grok) | `https://api.x.ai/v1` | `grok-3` |
+| Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-4` |
+| Together AI | `https://api.together.xyz/v1` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+| Fireworks AI | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/llama-v3p3-70b-instruct` |
+| Cerebras | `https://api.cerebras.ai/v1` | `llama-3.3-70b` |
 | Ollama | `http://localhost:11434/v1` | `llama3` |
 | LM Studio | `http://localhost:1234/v1` | *(your model)* |
+| Local Proxy | `http://localhost:3456/v1` | `claude-opus-4` |
+| Custom | *(your endpoint)* | *(your model)* |
 
 ## Commands
 

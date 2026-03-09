@@ -163,6 +163,10 @@
   transform: scale(0.9);
   transition-duration: 0.05s;
 }
+.pcai-sel-dot--default {
+  box-shadow: 0 0 0 2px var(--background-primary),
+              0 0 0 3px var(--dot-color);
+}
 
 .pcai-sel-divider {
   width: 1px;

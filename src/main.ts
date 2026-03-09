@@ -60,10 +60,10 @@ class SpreadOptionsModal extends Modal {
 export default class PdfCanvasAiPlugin extends Plugin {
   settings!: PluginSettings;
   annotationStore!: AnnotationStore;
-  chatStore!: ChatStore;
-  aiService!: AiService;
+  chatStore!: ChatStore;          // null when AI disabled
+  aiService!: AiService;          // null when AI disabled
   pdfService!: PdfService;
-  proxyManager!: ProxyManager;
+  proxyManager!: ProxyManager;    // null when AI disabled
   canvasInjector!: CanvasPdfInjector;
 
   async onload(): Promise<void> {
@@ -72,12 +72,15 @@ export default class PdfCanvasAiPlugin extends Plugin {
     this.annotationStore = new AnnotationStore(this);
     await this.annotationStore.load();
 
-    this.chatStore = new ChatStore(this.app, this.manifest.dir ?? '');
-    await this.chatStore.load();
-
-    this.aiService = new AiService(this.settings);
     this.pdfService = new PdfService(this.app);
-    this.proxyManager = new ProxyManager(this.settings.baseUrl);
+
+    // AI-related services: only initialize when AI is enabled
+    if (this.settings.enableAi) {
+      this.chatStore = new ChatStore(this.app, this.manifest.dir ?? '');
+      await this.chatStore.load();
+      this.aiService = new AiService(this.settings);
+      this.proxyManager = new ProxyManager(this.settings.baseUrl);
+    }
 
     this.setupPdfjsWorker();
     this.registerViews();
@@ -91,7 +94,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     this.registerVaultEvents();
 
     // Start the local proxy only if opt-in via settings
-    if (this.settings.proxyAutoStart && this.settings.provider === 'local-proxy') {
+    if (this.settings.enableAi && this.settings.proxyAutoStart && this.settings.provider === 'local-proxy') {
       this.proxyManager.ensureRunning().catch((e: unknown) => {
         console.error('PDF Tools: proxyManager.ensureRunning error', e);
       });
@@ -103,9 +106,11 @@ export default class PdfCanvasAiPlugin extends Plugin {
   async onunload(): Promise<void> {
     this.canvasInjector.stop();
     this.annotationStore.destroy();
-    await this.chatStore.flush();
-    this.chatStore.destroy();
-    this.proxyManager.stop();
+    if (this.chatStore) {
+      await this.chatStore.flush();
+      this.chatStore.destroy();
+    }
+    this.proxyManager?.stop();
     console.log('PDF Tools: unloaded');
   }
 
@@ -138,25 +143,29 @@ export default class PdfCanvasAiPlugin extends Plugin {
   // ─── Views ─────────────────────────────────────────────────────────────────
 
   private registerViews(): void {
-    this.registerView(AI_SIDEBAR_VIEW_TYPE, (leaf) => new AiSidebarView(leaf, this));
-    this.registerView(AI_CHAT_VIEW_TYPE, (leaf) => new AiChatView(leaf, this));
+    if (this.settings.enableAi) {
+      this.registerView(AI_SIDEBAR_VIEW_TYPE, (leaf) => new AiSidebarView(leaf, this));
+      this.registerView(AI_CHAT_VIEW_TYPE, (leaf) => new AiChatView(leaf, this));
+    }
     this.registerView(PDF_VIEWER_VIEW_TYPE, (leaf) => new PdfViewerView(leaf, this));
   }
 
   // ─── Ribbon ────────────────────────────────────────────────────────────────
 
   private addRibbonIcons(): void {
-    this.addRibbonIcon('bot', 'Open PDF Tools sidebar', () => {
-      this.activateAiSidebar().catch((e: unknown) => {
-        console.error('PDF Tools: activateAiSidebar error', e);
+    if (this.settings.enableAi) {
+      this.addRibbonIcon('bot', 'Open PDF Tools sidebar', () => {
+        this.activateAiSidebar().catch((e: unknown) => {
+          console.error('PDF Tools: activateAiSidebar error', e);
+        });
       });
-    });
 
-    this.addRibbonIcon('message-square', 'Open AI Chat', () => {
-      this.activateAiChat().catch((e: unknown) => {
-        console.error('PDF Tools: activateAiChat error', e);
+      this.addRibbonIcon('message-square', 'Open AI Chat', () => {
+        this.activateAiChat().catch((e: unknown) => {
+          console.error('PDF Tools: activateAiChat error', e);
+        });
       });
-    });
+    }
 
     this.addRibbonIcon('file-text', 'Open PDF Viewer', () => {
       this.activatePdfViewer().catch((e: unknown) => {
@@ -168,21 +177,39 @@ export default class PdfCanvasAiPlugin extends Plugin {
   // ─── Commands ──────────────────────────────────────────────────────────────
 
   private addCommands(): void {
-    this.addCommand({
-      id: 'open-ai-sidebar',
-      name: 'Open AI sidebar',
-      callback: () => {
-        this.activateAiSidebar().catch((e: unknown) => console.error(e));
-      },
-    });
+    if (this.settings.enableAi) {
+      this.addCommand({
+        id: 'open-ai-sidebar',
+        name: 'Open AI sidebar',
+        callback: () => {
+          this.activateAiSidebar().catch((e: unknown) => console.error(e));
+        },
+      });
 
-    this.addCommand({
-      id: 'open-ai-chat',
-      name: 'Open AI chat (full window)',
-      callback: () => {
-        this.activateAiChat().catch((e: unknown) => console.error(e));
-      },
-    });
+      this.addCommand({
+        id: 'open-ai-chat',
+        name: 'Open AI chat (full window)',
+        callback: () => {
+          this.activateAiChat().catch((e: unknown) => console.error(e));
+        },
+      });
+
+      this.addCommand({
+        id: 'ask-selected-pdfs',
+        name: 'Ask Claude about selected canvas PDF(s)',
+        callback: () => {
+          this.askAboutPdfs('selected').catch((e: unknown) => console.error(e));
+        },
+      });
+
+      this.addCommand({
+        id: 'ask-all-canvas-pdfs',
+        name: 'Ask Claude about all canvas PDFs',
+        callback: () => {
+          this.askAboutPdfs('all').catch((e: unknown) => console.error(e));
+        },
+      });
+    }
 
     this.addCommand({
       id: 'open-pdf-viewer',
@@ -197,22 +224,6 @@ export default class PdfCanvasAiPlugin extends Plugin {
       name: 'Open selected canvas PDF in viewer',
       callback: () => {
         this.openSelectedCanvasPdf().catch((e: unknown) => console.error(e));
-      },
-    });
-
-    this.addCommand({
-      id: 'ask-selected-pdfs',
-      name: 'Ask Claude about selected canvas PDF(s)',
-      callback: () => {
-        this.askAboutPdfs('selected').catch((e: unknown) => console.error(e));
-      },
-    });
-
-    this.addCommand({
-      id: 'ask-all-canvas-pdfs',
-      name: 'Ask Claude about all canvas PDFs',
-      callback: () => {
-        this.askAboutPdfs('all').catch((e: unknown) => console.error(e));
       },
     });
   }
@@ -240,14 +251,16 @@ export default class PdfCanvasAiPlugin extends Plugin {
               .catch((e: unknown) => console.error(e));
           }),
       );
-      menu.addItem((item) =>
-        item
-          .setTitle('Ask AI about this PDF')
-          .setIcon('bot')
-          .onClick(() => {
-            this.openFileInViewerAndAsk(file).catch((e: unknown) => console.error(e));
-          }),
-      );
+      if (this.settings.enableAi) {
+        menu.addItem((item) =>
+          item
+            .setTitle('Ask AI about this PDF')
+            .setIcon('bot')
+            .onClick(() => {
+              this.openFileInViewerAndAsk(file).catch((e: unknown) => console.error(e));
+            }),
+        );
+      }
       menu.addItem((item) =>
         item
           .setTitle('Spread PDF pages')

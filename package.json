@@ -1,6 +1,6 @@
 {
   "name": "obsidian-pdf-tools",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Obsidian plugin: Zotero-style PDF reader with highlights, annotations, AI chat, and canvas integration",
   "main": "main.js",
   "scripts": {
