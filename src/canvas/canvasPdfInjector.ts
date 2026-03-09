@@ -3,13 +3,17 @@ import type { WorkspaceLeaf } from 'obsidian';
 import type PdfCanvasAiPlugin from '../main';
 import { CanvasInlinePdf } from './canvasInlinePdf';
 
+/** Regex to extract spread-page marker from text node content. */
+const SPREAD_MARKER_RE = /%%pcai-spread:(.+?):(\d+)%%/;
+
 /**
- * Monitors canvas views for PDF file nodes and replaces Obsidian's
- * default embed with our pdfjs renderer (highlights, AI, extract-as-card).
+ * Monitors canvas views for PDF file nodes and spread-page text nodes,
+ * replacing default embeds with our pdfjs renderer.
  *
  * Canvas node objects expose:
- *   node.contentEl  →  .canvas-node-content.pdf-embed
- *   node.file       →  TFile
+ *   node.contentEl  →  .canvas-node-content.pdf-embed (file nodes)
+ *   node.file       →  TFile (file nodes only)
+ *   node.getData()  →  { type, text, ... } (text nodes)
  */
 export class CanvasPdfInjector {
   private plugin: PdfCanvasAiPlugin;
@@ -52,26 +56,26 @@ export class CanvasPdfInjector {
       if (!canvas?.nodes) continue;
 
       for (const node of canvas.nodes.values()) {
-        const file = node.file;
-        if (!(file instanceof TFile) || file.extension !== 'pdf') continue;
-
         const el: HTMLElement | undefined = node.contentEl;
         if (!el) continue;
         if (this.renderers.has(el)) continue;
-        // Only inject into fresh pdf-embed elements
-        if (!el.classList.contains('pdf-embed')) continue;
 
-        // Disable the content blocker so users can select text directly.
-        // The node can still be moved via edges, corners, or the label.
-        const blocker: HTMLElement | undefined = node.contentBlockerEl;
-        if (blocker) blocker.style.pointerEvents = 'none';
+        // ── PDF file nodes: replace native embed ──
+        const file = node.file;
+        if (file instanceof TFile && file.extension === 'pdf') {
+          if (!el.classList.contains('pdf-embed')) continue;
 
-        const renderer = new CanvasInlinePdf(el, file, this.plugin, canvas, node);
-        this.renderers.set(el, renderer);
-        renderer.render().catch((e: unknown) => {
-          console.error('PDF Canvas AI — injection error:', e);
-          this.renderers.delete(el);
-        });
+          const renderer = new CanvasInlinePdf(el, file, this.plugin, canvas, node);
+          this.renderers.set(el, renderer);
+          renderer.render().catch((e: unknown) => {
+            console.error('PDF Canvas AI — injection error:', e);
+            this.renderers.delete(el);
+          });
+          continue;
+        }
+
+        // ── Spread-page text nodes: render single PDF page ──
+        this.tryInjectSpreadPage(el, node, canvas);
       }
     }
 
@@ -82,6 +86,46 @@ export class CanvasPdfInjector {
         this.observers.delete(leaf);
       }
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private tryInjectSpreadPage(el: HTMLElement, node: any, canvas: any): void {
+    let text: string | undefined;
+    try {
+      const data = typeof node.getData === 'function' ? node.getData() : null;
+      if (data?.type !== 'text') return;
+      text = data.text;
+    } catch {
+      return;
+    }
+    if (!text) return;
+
+    const match = text.match(SPREAD_MARKER_RE);
+    if (!match) return;
+
+    const filePath = match[1];
+    const pageNum = parseInt(match[2], 10);
+    if (isNaN(pageNum) || pageNum < 1) return;
+
+    const abstractFile = this.plugin.app.vault.getAbstractFileByPath(filePath);
+    if (!(abstractFile instanceof TFile) || abstractFile.extension !== 'pdf') return;
+
+    const renderer = new CanvasInlinePdf(
+      el, abstractFile, this.plugin, canvas, node, pageNum,
+    );
+    this.renderers.set(el, renderer);
+    renderer.render().catch((e: unknown) => {
+      console.error('PDF Canvas AI — spread page injection error:', e);
+      this.renderers.delete(el);
+    });
+  }
+
+  /** Look up the renderer for a given canvas node, if one exists. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getRendererForNode(node: any): CanvasInlinePdf | null {
+    const el: HTMLElement | undefined = node?.contentEl;
+    if (!el) return null;
+    return this.renderers.get(el) ?? null;
   }
 
   stop(): void {

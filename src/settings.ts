@@ -1,5 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type PdfCanvasAiPlugin from './main';
+import type { HighlightColor } from './types/annotations';
+import { HIGHLIGHT_COLORS, COLOR_HEX } from './types/annotations';
 
 export type AiProvider = 'local-proxy' | 'openai' | 'anthropic' | 'custom';
 
@@ -18,7 +20,16 @@ export interface PluginSettings {
   maxContextChars: number;
   systemPrompt: string;
   proxyAutoStart: boolean;
+  colorLabels: Record<HighlightColor, string>;
 }
+
+export const DEFAULT_COLOR_LABELS: Record<HighlightColor, string> = {
+  yellow: 'Important',
+  green: 'Key Point',
+  blue: 'Definition',
+  pink: 'Question',
+  red: 'Disagree',
+};
 
 const PROVIDER_DEFAULTS: Record<AiProvider, Omit<ProviderConfig, 'provider'>> = {
   'local-proxy': {
@@ -54,6 +65,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     'You are a helpful assistant that analyzes PDF documents. ' +
     'When PDF content is provided as context, analyze it carefully and answer questions about it. ' +
     'Be concise and precise. When quoting from the document, use block quotes.',
+  colorLabels: { ...DEFAULT_COLOR_LABELS },
 };
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
@@ -202,6 +214,33 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
         text.inputEl.rows = 5;
         text.inputEl.style.width = '100%';
       });
+
+    // ── Highlight color labels ──
+    containerEl.createEl('h3', { text: 'Highlight Color Labels' });
+    containerEl.createEl('p', {
+      text: 'Assign a meaning to each highlight color. These labels appear in the annotations sidebar and can be used as filters.',
+      cls: 'setting-item-description',
+    });
+
+    const labels = this.plugin.settings.colorLabels ?? { ...DEFAULT_COLOR_LABELS };
+    for (const color of HIGHLIGHT_COLORS) {
+      const setting = new Setting(containerEl)
+        .setName(color.charAt(0).toUpperCase() + color.slice(1))
+        .addText((text) =>
+          text
+            .setPlaceholder(DEFAULT_COLOR_LABELS[color])
+            .setValue(labels[color] ?? DEFAULT_COLOR_LABELS[color])
+            .onChange(async (value) => {
+              this.plugin.settings.colorLabels[color] = value.trim() || DEFAULT_COLOR_LABELS[color];
+              await this.plugin.saveSettings();
+            }),
+        );
+      // Add a color swatch before the setting name
+      const nameEl = setting.nameEl;
+      const swatch = createSpan({ cls: 'pcai-settings-color-swatch' });
+      swatch.style.backgroundColor = COLOR_HEX[color];
+      nameEl.prepend(swatch);
+    }
   }
 
   /** Returns the provider before the current render, for detecting default swaps. */

@@ -1,8 +1,8 @@
 import esbuild from 'esbuild';
 import process from 'process';
 import builtins from 'builtin-modules';
-import { copyFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { readFileSync } from 'fs';
+import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
@@ -16,22 +16,29 @@ const banner = `/*
   Built with esbuild. Source: https://github.com/voidash/obsidian-pdf-canvas-ai
 */`;
 
-// Copy pdfjs worker file alongside the plugin so it can be loaded as a Web Worker.
-// The worker is NOT bundled into main.js to keep load times reasonable.
-function copyPdfjsWorker() {
-  try {
-    const pdfjsPath = dirname(require.resolve('pdfjs-dist/package.json'));
-    const workerSrc = resolve(pdfjsPath, 'build/pdf.worker.min.js');
-    const workerDst = resolve(__dirname, 'pdf.worker.min.js');
-    if (existsSync(workerSrc)) {
-      copyFileSync(workerSrc, workerDst);
-      console.log('[esbuild] Copied pdf.worker.min.js');
-    } else {
-      console.warn('[esbuild] pdf.worker.min.js not found at', workerSrc);
-    }
-  } catch (e) {
-    console.warn('[esbuild] Could not copy pdfjs worker:', e.message);
-  }
+/**
+ * esbuild plugin: resolves `import workerText from 'pdfjs-worker-inline'`
+ * to the contents of pdf.worker.min.js as a string export.
+ * This lets us create a Blob URL at runtime instead of shipping a separate file.
+ */
+function pdfjsWorkerInlinePlugin() {
+  return {
+    name: 'pdfjs-worker-inline',
+    setup(build) {
+      build.onResolve({ filter: /^pdfjs-worker-inline$/ }, () => ({
+        path: 'pdfjs-worker-inline',
+        namespace: 'pdfjs-worker',
+      }));
+      build.onLoad({ filter: /.*/, namespace: 'pdfjs-worker' }, () => {
+        const workerPath = require.resolve('pdfjs-dist/build/pdf.worker.min.js');
+        const content = readFileSync(workerPath, 'utf8');
+        return {
+          contents: `module.exports = ${JSON.stringify(content)};`,
+          loader: 'js',
+        };
+      });
+    },
+  };
 }
 
 const context = await esbuild.context({
@@ -61,14 +68,7 @@ const context = await esbuild.context({
   treeShaking: true,
   outfile: 'main.js',
   plugins: [
-    {
-      name: 'on-end',
-      setup(build) {
-        build.onEnd(() => {
-          copyPdfjsWorker();
-        });
-      },
-    },
+    pdfjsWorkerInlinePlugin(),
   ],
 });
 

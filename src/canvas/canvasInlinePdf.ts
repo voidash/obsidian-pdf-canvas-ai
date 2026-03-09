@@ -36,11 +36,22 @@ export class CanvasInlinePdf {
   private currentScale = 1.0;
   private destroyed = false;
 
+  /** If set, only this page number is rendered (used for "spread pages" nodes). */
+  private singlePage: number | null = null;
+
   // Selection state
   private selectedText = '';
   private selectedRects: PageRect[] = [];
   private selectedPageNum = 0;
   private mousedownHandler: ((e: MouseEvent) => void) | null = null;
+
+  // Interactive mode: double-click to enable scrolling & text selection,
+  // click outside or Escape to re-enable node dragging.
+  private interactive = false;
+  private blockerEl: HTMLElement | null = null;
+  private blockerDblclickHandler: ((e: MouseEvent) => void) | null = null;
+  private exitInteractiveHandler: ((e: PointerEvent) => void) | null = null;
+  private escHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(
     containerEl: HTMLElement,
@@ -50,31 +61,39 @@ export class CanvasInlinePdf {
     canvas: any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     node: any,
+    singlePageNum?: number,
   ) {
     this.containerEl = containerEl;
     this.file = file;
     this.plugin = plugin;
     this.canvas = canvas;
     this.node = node;
+    this.singlePage = singlePageNum ?? null;
   }
 
   async render(): Promise<void> {
-    // Clear Obsidian's default PDF embed entirely
+    // Clear container
     this.containerEl.empty();
     this.containerEl.classList.remove('pdf-embed');
     this.containerEl.classList.add('pcai-canvas-pdf');
+    if (this.singlePage !== null) {
+      this.containerEl.classList.add('pcai-canvas-pdf-single');
+    }
 
     // Scrollable container for pages
     const scrollContainer = this.containerEl.createDiv({ cls: 'pcai-canvas-scroll' });
     this.pagesEl = scrollContainer.createDiv({ cls: 'pcai-canvas-pages' });
 
-    // Stop pointer events from bubbling to the canvas — otherwise the canvas
-    // captures them for panning/node-dragging and text selection never starts.
+    // In interactive mode, stop events from reaching the canvas (prevents drag/pan).
+    // In normal mode, let events propagate so the node remains draggable.
     for (const evt of ['pointerdown', 'mousedown'] as const) {
       scrollContainer.addEventListener(evt, (e) => {
-        e.stopPropagation();
+        if (this.interactive) e.stopPropagation();
       });
     }
+    scrollContainer.addEventListener('wheel', (e) => {
+      if (this.interactive) e.stopPropagation();
+    });
 
     // Selection menu (hidden by default)
     this.buildSelectionMenu();
@@ -110,6 +129,9 @@ export class CanvasInlinePdf {
 
     // Text selection
     this.setupSelectionListener();
+
+    // Interactive mode toggle (double-click to enter, click outside / Escape to exit)
+    this.setupInteractiveToggle();
   }
 
   // ─── Page rendering ───────────────────────────────────────────────────────
@@ -120,10 +142,14 @@ export class CanvasInlinePdf {
     this.pageObserver?.disconnect();
     this.pagesEl.empty();
 
+    // Determine which pages to render
+    const startPage = this.singlePage ?? 1;
+    const endPage = this.singlePage ?? this.pdfDoc.numPages;
+
     // Compute scale to fit container width
-    const firstPage = await this.pdfDoc.getPage(1);
-    const naturalWidth = firstPage.getViewport({ scale: 1 }).width;
-    const containerWidth = this.containerEl.clientWidth - 16; // padding
+    const refPage = await this.pdfDoc.getPage(startPage);
+    const naturalWidth = refPage.getViewport({ scale: 1 }).width;
+    const containerWidth = this.containerEl.clientWidth - (this.singlePage ? 0 : 16); // no padding for single page
     if (containerWidth > 0) {
       this.currentScale = containerWidth / naturalWidth;
     }
@@ -144,7 +170,7 @@ export class CanvasInlinePdf {
       { root: this.pagesEl.parentElement, rootMargin: '200px', threshold: 0 },
     );
 
-    for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+    for (let i = startPage; i <= endPage; i++) {
       const page = await this.pdfDoc.getPage(i);
       const vp = page.getViewport({ scale: this.currentScale });
 
@@ -241,7 +267,7 @@ export class CanvasInlinePdf {
     if (this.resizeTimer) clearTimeout(this.resizeTimer);
     this.resizeTimer = setTimeout(() => {
       if (!this.pdfDoc || this.destroyed) return;
-      const containerWidth = this.containerEl.clientWidth - 16;
+      const containerWidth = this.containerEl.clientWidth - (this.singlePage ? 0 : 16);
       if (containerWidth <= 0) return;
 
       this.pdfDoc
@@ -583,10 +609,106 @@ export class CanvasInlinePdf {
     }
   }
 
+  // ─── Interactive mode ─────────────────────────────────────────────────
+
+  private setupInteractiveToggle(): void {
+    this.blockerEl = this.node?.contentBlockerEl ?? null;
+    if (!this.blockerEl) {
+      // No content blocker — default to always interactive
+      this.interactive = true;
+      return;
+    }
+
+    this.blockerEl.title = 'Double-click to interact with PDF';
+    this.blockerEl.style.cursor = 'pointer';
+
+    this.blockerDblclickHandler = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.enterInteractiveMode();
+    };
+    this.blockerEl.addEventListener('dblclick', this.blockerDblclickHandler);
+  }
+
+  private enterInteractiveMode(): void {
+    if (this.interactive || this.destroyed) return;
+    this.interactive = true;
+    if (this.blockerEl) this.blockerEl.style.pointerEvents = 'none';
+    this.containerEl.classList.add('pcai-interactive');
+
+    // Click outside the canvas node to exit
+    this.exitInteractiveHandler = (e: PointerEvent) => {
+      const nodeEl = this.containerEl.closest('.canvas-node');
+      if (nodeEl && !nodeEl.contains(e.target as Node)) {
+        this.exitInteractiveMode();
+      }
+    };
+
+    // Escape key to exit
+    this.escHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') this.exitInteractiveMode();
+    };
+
+    // Delay so the current double-click doesn't immediately trigger exit
+    setTimeout(() => {
+      if (this.destroyed) return;
+      document.addEventListener('pointerdown', this.exitInteractiveHandler!, true);
+      document.addEventListener('keydown', this.escHandler!, true);
+    }, 100);
+  }
+
+  private exitInteractiveMode(): void {
+    if (!this.interactive) return;
+    this.interactive = false;
+    if (this.blockerEl) this.blockerEl.style.pointerEvents = '';
+    this.containerEl.classList.remove('pcai-interactive');
+
+    if (this.exitInteractiveHandler) {
+      document.removeEventListener('pointerdown', this.exitInteractiveHandler, true);
+      this.exitInteractiveHandler = null;
+    }
+    if (this.escHandler) {
+      document.removeEventListener('keydown', this.escHandler, true);
+      this.escHandler = null;
+    }
+    window.getSelection()?.removeAllRanges();
+    this.hideSelectionMenu();
+  }
+
+  /** Returns the page number most visible in the current scroll position. */
+  getCurrentVisiblePage(): number {
+    if (this.singlePage !== null) return this.singlePage;
+    if (!this.pdfDoc) return 1;
+    const scrollEl = this.pagesEl?.parentElement;
+    if (!scrollEl) return 1;
+
+    const scrollCenter = scrollEl.scrollTop + scrollEl.clientHeight / 2;
+    let bestPage = 1;
+    let bestDist = Infinity;
+
+    for (const el of Array.from(this.pagesEl.querySelectorAll('.pcai-page-wrapper'))) {
+      const htmlEl = el as HTMLElement;
+      const num = parseInt(htmlEl.getAttribute('data-page') ?? '0', 10);
+      if (num <= 0) continue;
+      const center = htmlEl.offsetTop + htmlEl.offsetHeight / 2;
+      const dist = Math.abs(center - scrollCenter);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestPage = num;
+      }
+    }
+    return bestPage;
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────────
 
   destroy(): void {
     this.destroyed = true;
+    this.exitInteractiveMode();
+    if (this.blockerDblclickHandler && this.blockerEl) {
+      this.blockerEl.removeEventListener('dblclick', this.blockerDblclickHandler);
+      this.blockerDblclickHandler = null;
+    }
     this.resizeObserver?.disconnect();
     this.pageObserver?.disconnect();
     if (this.resizeTimer) clearTimeout(this.resizeTimer);

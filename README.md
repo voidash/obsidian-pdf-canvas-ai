@@ -7,10 +7,14 @@ Obsidian plugin that turns your vault into a research workspace. Read and annota
 ### PDF Reader
 - **Dedicated PDF viewer** with pdfjs-dist text layer — selectable, searchable text
 - **Zotero-style highlights** — select text, pick a color, highlights persist across sessions
+- **Color labels** — assign meanings to each highlight color (e.g. yellow = "Important", blue = "Definition") and filter annotations by color
 - **Annotation library** — left sidebar lists all PDFs and their annotations, grouped by page
 - **Click-to-navigate** — click an annotation card to jump to that page
 - **Notes on highlights** — add freeform notes to any highlight
+- **Table of contents** — collapsible outline sidebar for PDFs with bookmarks
+- **Built-in dictionary** — look up words with an embedded 82k-word WordNet dictionary (auto-downloaded on first use, with online API fallback)
 - **Zoom controls** — zoom in/out, fit to width
+- **Search** — full-text search within PDF (Ctrl/Cmd+F)
 - **Replaces native viewer** — clicking any PDF in the file explorer opens in this viewer
 
 ### AI Chat
@@ -24,8 +28,10 @@ Obsidian plugin that turns your vault into a research workspace. Read and annota
 - **Full-window chat** — open AI chat as a full editor tab for more space
 
 ### Canvas Integration
-- **Right-click menu** — "Open in PDF viewer" and "Ask AI" on canvas PDF nodes
+- **Right-click menu** — "Open in PDF viewer", "Ask AI", "Spread pages", and "Extract current page" on canvas PDF nodes
 - **Inline PDF rendering** — PDF nodes on canvas render with text selection and highlights
+- **Interactive mode** — double-click a canvas PDF to enter interactive mode (scroll, select text); click outside to exit and resume node dragging
+- **Spread pages** — explode a multi-page PDF into individual page nodes on the canvas (choose down or right direction)
 - **Canvas context** — AI can read all items on the active canvas (text cards, files, connections)
 
 ## Installation
@@ -45,7 +51,7 @@ npm install
 npm run build
 ```
 
-Copy `main.js`, `styles.css`, `manifest.json`, and `pdf.worker.min.js` into your vault at `.obsidian/plugins/pdf-canvas-ai/`.
+Copy `main.js`, `styles.css`, and `manifest.json` into your vault at `.obsidian/plugins/pdf-canvas-ai/`.
 
 ## Configuration
 
@@ -59,6 +65,7 @@ Copy `main.js`, `styles.css`, `manifest.json`, and `pdf.worker.min.js` into your
 | API Base URL | `https://api.openai.com/v1` | Endpoint URL |
 | Max context chars | `80000` | Document text truncation limit |
 | System prompt | *(built-in)* | AI instructions |
+| Highlight color labels | Important, Key Point, Definition, Question, Disagree | Meaning assigned to each color (yellow, green, blue, pink, red) |
 
 ### Provider Examples
 

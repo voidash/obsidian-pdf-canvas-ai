@@ -1,9 +1,18 @@
-import { ItemView, WorkspaceLeaf, Notice, Menu, FuzzySuggestModal, App, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Menu, FuzzySuggestModal, App, TFile, setIcon, requestUrl } from 'obsidian';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import type PdfCanvasAiPlugin from '../main';
 import { HIGHLIGHT_COLORS, COLOR_HEX } from '../types/annotations';
 import type { HighlightColor, PageRect, Highlight } from '../types/annotations';
+import { DEFAULT_COLOR_LABELS } from '../settings';
+
+/** POS abbreviation → readable label for the embedded WordNet dictionary */
+const POS_LABELS: Record<string, string> = {
+  n: 'noun',
+  v: 'verb',
+  adj: 'adjective',
+  adv: 'adverb',
+};
 
 export const PDF_VIEWER_VIEW_TYPE = 'pdf-canvas-ai-viewer';
 
@@ -44,6 +53,9 @@ export class PdfViewerView extends ItemView {
   private searchInputEl!: HTMLInputElement;
   private searchResultsEl!: HTMLElement;
   private outlineEl!: HTMLElement;
+  private outlineSectionEl!: HTMLElement;
+  private dictionaryResultsEl!: HTMLElement;
+  private dictionarySectionEl!: HTMLElement;
 
   // Search state
   private searchOpen = false;
@@ -53,6 +65,14 @@ export class PdfViewerView extends ItemView {
   // Scroll-based page tracking
   private pageTrackingObserver: IntersectionObserver | null = null;
   private visiblePages = new Set<number>();
+
+  // Color filter state
+  private activeColorFilter: HighlightColor | null = null;
+  private colorFilterEl!: HTMLElement;
+
+  // Embedded dictionary cache (loaded once from dictionary.json)
+  private localDict: Record<string, [string, string][]> | null = null;
+  private localDictLoading = false;
 
   // Event handler refs for cleanup
   private mousedownHandler: ((e: MouseEvent) => void) | null = null;
@@ -164,6 +184,7 @@ export class PdfViewerView extends ItemView {
     await this.createPagePlaceholders();
     if (gen !== this.loadGeneration) return;
     this.loadHighlightsForCurrentFile();
+    this.loadOutline();
   }
 
   // ─── UI construction ───────────────────────────────────────────────────────
@@ -188,28 +209,110 @@ export class PdfViewerView extends ItemView {
     this.libraryEl = parent.createDiv('pcai-library');
 
     // ── File list section ──
-    const filesSection = this.libraryEl.createDiv('pcai-library-section');
-    const filesHeader = filesSection.createDiv('pcai-library-section-header');
-    filesHeader.createSpan({ text: 'PDFs' });
+    const { content: filesContent } = this.createCollapsibleSection(
+      this.libraryEl, 'PDFs', 'pcai-files-section',
+    );
 
-    this.librarySearchEl = filesSection.createEl('input', {
+    this.librarySearchEl = filesContent.createEl('input', {
       cls: 'pcai-library-search',
       attr: { type: 'text', placeholder: 'Filter\u2026' },
     }) as HTMLInputElement;
     this.librarySearchEl.addEventListener('input', () => this.refreshFileList());
 
-    this.fileListEl = filesSection.createDiv('pcai-file-list');
+    this.fileListEl = filesContent.createDiv('pcai-file-list');
+
+    // ── Outline / TOC section ──
+    const { section: outlineSection, content: outlineContent } = this.createCollapsibleSection(
+      this.libraryEl, 'Outline', 'pcai-outline-section', true,
+    );
+    this.outlineSectionEl = outlineSection;
+    this.outlineEl = outlineContent;
+
+    // ── Dictionary section ──
+    const { section: dictSection, content: dictContent } = this.createCollapsibleSection(
+      this.libraryEl, 'Dictionary', 'pcai-dictionary-section', true,
+    );
+    this.dictionarySectionEl = dictSection;
+
+    const dictInput = dictContent.createEl('input', {
+      cls: 'pcai-dict-search',
+      attr: { type: 'text', placeholder: 'Look up a word\u2026' },
+    }) as HTMLInputElement;
+    dictInput.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        const word = dictInput.value.trim();
+        if (word) this.lookupWord(word);
+      }
+    });
+    this.dictionaryResultsEl = dictContent.createDiv('pcai-dict-results');
 
     // ── Annotations section ──
-    const annoSection = this.libraryEl.createDiv('pcai-library-section pcai-annotations-section');
-    const annoHeader = annoSection.createDiv('pcai-library-section-header');
-    annoHeader.createSpan({ text: 'Annotations' });
+    const { content: annoContent } = this.createCollapsibleSection(
+      this.libraryEl, 'Annotations', 'pcai-annotations-section',
+    );
 
-    this.annotationsEl = annoSection.createDiv('pcai-annotation-list');
+    // Color filter row
+    this.colorFilterEl = annoContent.createDiv('pcai-color-filter-row');
+    this.buildColorFilterRow();
+
+    this.annotationsEl = annoContent.createDiv();
+    this.annotationsEl.addClass('pcai-annotation-list');
     this.annotationsEl.createDiv({
       cls: 'pcai-anno-empty',
       text: 'Open a PDF to see annotations',
     });
+  }
+
+  private createCollapsibleSection(
+    parent: HTMLElement,
+    title: string,
+    extraClass?: string,
+    startCollapsed = false,
+  ): { section: HTMLElement; content: HTMLElement } {
+    const section = parent.createDiv({ cls: `pcai-library-section ${extraClass ?? ''}` });
+    if (startCollapsed) section.addClass('pcai-collapsed');
+
+    const header = section.createDiv({ cls: 'pcai-library-section-header pcai-collapsible' });
+    const chevron = header.createSpan({ cls: 'pcai-collapse-chevron' });
+    setIcon(chevron, 'chevron-right');
+    header.createSpan({ text: title });
+
+    header.addEventListener('click', () => {
+      section.toggleClass('pcai-collapsed', !section.hasClass('pcai-collapsed'));
+    });
+
+    const content = section.createDiv({ cls: 'pcai-section-content' });
+    return { section, content };
+  }
+
+  private buildColorFilterRow(): void {
+    this.colorFilterEl.empty();
+    const labels = this.plugin.settings.colorLabels ?? DEFAULT_COLOR_LABELS;
+
+    // "All" button
+    const allBtn = this.colorFilterEl.createEl('button', {
+      cls: `pcai-color-filter-btn ${this.activeColorFilter === null ? 'pcai-color-filter-active' : ''}`,
+      text: 'All',
+    });
+    allBtn.addEventListener('click', () => {
+      this.activeColorFilter = null;
+      this.buildColorFilterRow();
+      this.refreshAnnotations();
+    });
+
+    for (const color of HIGHLIGHT_COLORS) {
+      const btn = this.colorFilterEl.createEl('button', {
+        cls: `pcai-color-filter-btn ${this.activeColorFilter === color ? 'pcai-color-filter-active' : ''}`,
+        attr: { title: labels[color] ?? color },
+      });
+      const dot = btn.createSpan({ cls: 'pcai-color-filter-dot' });
+      dot.style.backgroundColor = COLOR_HEX[color];
+      btn.addEventListener('click', () => {
+        this.activeColorFilter = this.activeColorFilter === color ? null : color;
+        this.buildColorFilterRow();
+        this.refreshAnnotations();
+      });
+    }
   }
 
   private refreshFileList(): void {
@@ -285,7 +388,7 @@ export class PdfViewerView extends ItemView {
       return;
     }
 
-    const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
+    let highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
 
     if (highlights.length === 0) {
       this.annotationsEl.createDiv({
@@ -293,6 +396,19 @@ export class PdfViewerView extends ItemView {
         text: 'No annotations yet. Select text to highlight.',
       });
       return;
+    }
+
+    // Apply color filter
+    if (this.activeColorFilter) {
+      highlights = highlights.filter((h) => h.color === this.activeColorFilter);
+      if (highlights.length === 0) {
+        const label = this.plugin.settings.colorLabels?.[this.activeColorFilter] ?? this.activeColorFilter;
+        this.annotationsEl.createDiv({
+          cls: 'pcai-anno-empty',
+          text: `No "${label}" highlights yet.`,
+        });
+        return;
+      }
     }
 
     // Group by page
@@ -321,10 +437,12 @@ export class PdfViewerView extends ItemView {
           this.scrollToPage(h.pageNumber);
         });
 
-        // Color dot + text
+        // Color dot + label + text
         const row = card.createDiv('pcai-anno-row');
         const dot = row.createSpan('pcai-anno-dot');
         dot.style.setProperty('--dot-color', COLOR_HEX[h.color]);
+        const colorLabel = this.plugin.settings.colorLabels?.[h.color] ?? DEFAULT_COLOR_LABELS[h.color];
+        dot.title = colorLabel;
 
         const textEl = row.createSpan({
           cls: 'pcai-anno-text',
@@ -420,7 +538,6 @@ export class PdfViewerView extends ItemView {
 
     this.buildToolbar(viewerPanel);
     this.buildSearchBar(viewerPanel);
-    this.buildOutlinePanel(viewerPanel);
     this.buildViewport(viewerPanel);
   }
 
@@ -428,41 +545,48 @@ export class PdfViewerView extends ItemView {
     const bar = root.createDiv('pcai-pdf-toolbar');
 
     const openBtn = bar.createEl('button', {
-      cls: 'pcai-icon-btn pcai-open-btn',
-      attr: { title: 'Open PDF from vault' },
-      text: '\uD83D\uDCC2',
+      cls: 'pcai-icon-btn pcai-open-btn clickable-icon',
+      attr: { 'aria-label': 'Open PDF from vault' },
     });
+    setIcon(openBtn, 'folder-open');
     openBtn.addEventListener('click', () => this.openFilePicker());
 
     this.filenameLabelEl = bar.createSpan({ cls: 'pcai-pdf-filename', text: 'Select a PDF' });
 
     const navGroup = bar.createDiv('pcai-pdf-nav');
 
-    const prevBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Previous page' }, text: '\u25C0' });
+    const prevBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Previous page' } });
+    setIcon(prevBtn, 'chevron-left');
     prevBtn.addEventListener('click', () => this.navigatePage(-1));
 
     this.pageInfoEl = navGroup.createSpan({ cls: 'pcai-pdf-page-info pcai-page-info-clickable', text: '\u2014' });
     this.pageInfoEl.setAttribute('title', 'Click to jump to page');
     this.pageInfoEl.addEventListener('click', () => this.showPageJumpInput());
 
-    const nextBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Next page' }, text: '\u25B6' });
+    const nextBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Next page' } });
+    setIcon(nextBtn, 'chevron-right');
     nextBtn.addEventListener('click', () => this.navigatePage(1));
 
-    const searchBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Search (Ctrl+F)' }, text: '\uD83D\uDD0D' });
+    const searchBtn = navGroup.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Search (Ctrl+F)' } });
+    setIcon(searchBtn, 'search');
     searchBtn.addEventListener('click', () => this.toggleSearch());
 
     const zoomGroup = bar.createDiv('pcai-pdf-zoom');
 
-    const zoomOutBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Zoom out' }, text: '\u2212' });
+    const zoomOutBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Zoom out' } });
+    setIcon(zoomOutBtn, 'minus');
     zoomOutBtn.addEventListener('click', () => this.adjustZoom(-0.25));
 
-    const zoomInBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Zoom in' }, text: '+' });
+    const zoomInBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Zoom in' } });
+    setIcon(zoomInBtn, 'plus');
     zoomInBtn.addEventListener('click', () => this.adjustZoom(0.25));
 
-    const fitBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Fit to width' }, text: '\u2922' });
+    const fitBtn = zoomGroup.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Fit to width' } });
+    setIcon(fitBtn, 'maximize-2');
     fitBtn.addEventListener('click', () => this.fitToWidth());
 
-    const outlineBtn = bar.createEl('button', { cls: 'pcai-icon-btn', attr: { title: 'Table of contents' }, text: '\u2630' });
+    const outlineBtn = bar.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Table of contents' } });
+    setIcon(outlineBtn, 'list');
     outlineBtn.addEventListener('click', () => this.toggleOutline());
 
     const aiBtn = bar.createEl('button', { cls: 'pcai-ask-btn mod-cta', text: 'Ask AI' });
@@ -515,6 +639,15 @@ export class PdfViewerView extends ItemView {
         new Notice('PDF Canvas AI: Copy failed.');
         console.error('PDF Canvas AI \u2014 clipboard error:', err);
       });
+      this.hideSelectionMenu();
+      window.getSelection()?.removeAllRanges();
+    });
+
+    const defineBtn = actions.createEl('button', { cls: 'pcai-sel-btn', text: 'Define' });
+    defineBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const text = this.selectedText.trim();
+      if (text) this.lookupWord(text);
       this.hideSelectionMenu();
       window.getSelection()?.removeAllRanges();
     });
@@ -895,11 +1028,6 @@ export class PdfViewerView extends ItemView {
 
   // ─── PDF Outline / TOC ────────────────────────────────────────────────────
 
-  private buildOutlinePanel(root: HTMLElement): void {
-    this.outlineEl = root.createDiv('pcai-outline-panel');
-    this.outlineEl.style.display = 'none';
-  }
-
   private async loadOutline(): Promise<void> {
     if (!this.pdfDoc) return;
     this.outlineEl.empty();
@@ -952,10 +1080,10 @@ export class PdfViewerView extends ItemView {
   }
 
   private toggleOutline(): void {
-    const isVisible = this.outlineEl.style.display !== 'none';
-    this.outlineEl.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
-      this.loadOutline();
+    const isCollapsed = this.outlineSectionEl.hasClass('pcai-collapsed');
+    this.outlineSectionEl.toggleClass('pcai-collapsed', !isCollapsed);
+    if (isCollapsed) {
+      this.outlineSectionEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
 
@@ -1160,6 +1288,190 @@ export class PdfViewerView extends ItemView {
       if (this.currentFile) view.setCurrentPdf(this.currentFile);
       view.prefillQuestion(`Regarding this highlighted passage:\n\n> ${h.text}\n\n`);
       view.setContextScope('pdf');
+    }
+  }
+
+  // ─── Dictionary ──────────────────────────────────────────────────────────
+
+  private static readonly DICT_DOWNLOAD_URL =
+    'https://github.com/voidash/obsidian-pdf-canvas-ai/releases/latest/download/dictionary.json';
+
+  /**
+   * Loads the WordNet dictionary.json — tries local cache first, then
+   * auto-downloads from the GitHub release and saves to the plugin dir.
+   */
+  private async loadLocalDictionary(): Promise<Record<string, [string, string][]>> {
+    if (this.localDict) return this.localDict;
+    if (this.localDictLoading) {
+      // Wait for the in-flight load to complete
+      return new Promise((resolve) => {
+        const check = setInterval(() => {
+          if (this.localDict) {
+            clearInterval(check);
+            resolve(this.localDict);
+          }
+        }, 50);
+      });
+    }
+
+    this.localDictLoading = true;
+    const adapter = this.app.vault.adapter;
+    const dictPath = `${this.app.vault.configDir}/plugins/pdf-canvas-ai/dictionary.json`;
+
+    // 1. Try reading from local cache
+    try {
+      const raw = await adapter.read(dictPath);
+      if (raw) {
+        this.localDict = JSON.parse(raw);
+        console.log(`PDF Canvas AI — loaded dictionary (${Object.keys(this.localDict!).length} words) from cache`);
+        this.localDictLoading = false;
+        return this.localDict!;
+      }
+    } catch {
+      // File doesn't exist yet — will download below
+    }
+
+    // 2. Download from GitHub release
+    try {
+      new Notice('PDF Canvas AI: Downloading dictionary (first-time setup)…');
+      const response = await requestUrl({ url: PdfViewerView.DICT_DOWNLOAD_URL });
+      if (response.status === 200 && response.text) {
+        // Save to plugin dir for future use
+        await adapter.write(dictPath, response.text);
+        this.localDict = JSON.parse(response.text);
+        const count = Object.keys(this.localDict!).length;
+        console.log(`PDF Canvas AI — downloaded dictionary (${count} words)`);
+        new Notice(`PDF Canvas AI: Dictionary ready (${count.toLocaleString()} words)`);
+        this.localDictLoading = false;
+        return this.localDict!;
+      }
+    } catch (err) {
+      console.warn('PDF Canvas AI — dictionary download failed:', err);
+      new Notice('PDF Canvas AI: Dictionary download failed. Using online fallback.');
+    }
+
+    this.localDictLoading = false;
+    // Return empty dict — API fallback will handle lookups
+    const empty: Record<string, [string, string][]> = Object.create(null);
+    this.localDict = empty;
+    return empty;
+  }
+
+  private async lookupWord(word: string): Promise<void> {
+    this.dictionaryResultsEl.empty();
+    this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-loading', text: 'Looking up\u2026' });
+
+    // Expand dictionary section and scroll into view
+    this.dictionarySectionEl.removeClass('pcai-collapsed');
+    this.dictionarySectionEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const normalized = word.toLowerCase().trim();
+
+    // 1. Try embedded dictionary first
+    try {
+      const dict = await this.loadLocalDictionary();
+      const entries = dict[normalized];
+      if (entries && entries.length > 0) {
+        this.dictionaryResultsEl.empty();
+        this.renderLocalDictResults(normalized, entries);
+        return;
+      }
+    } catch (err) {
+      console.warn('PDF Canvas AI — local dictionary lookup error:', err);
+    }
+
+    // 2. Fallback to free API
+    try {
+      const response = await requestUrl({
+        url: `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(normalized)}`,
+      });
+      this.dictionaryResultsEl.empty();
+
+      if (response.status !== 200) {
+        this.dictionaryResultsEl.createDiv({
+          cls: 'pcai-dict-empty',
+          text: `No definition found for "${word}"`,
+        });
+        return;
+      }
+
+      const apiEntries = response.json;
+      if (!Array.isArray(apiEntries) || apiEntries.length === 0) {
+        this.dictionaryResultsEl.createDiv({
+          cls: 'pcai-dict-empty',
+          text: `No definition found for "${word}"`,
+        });
+        return;
+      }
+
+      this.renderApiDictResults(apiEntries);
+    } catch {
+      this.dictionaryResultsEl.empty();
+      this.dictionaryResultsEl.createDiv({
+        cls: 'pcai-dict-empty',
+        text: `No definition found for "${word}"`,
+      });
+    }
+  }
+
+  /**
+   * Renders results from the embedded WordNet dictionary.
+   * Format: [["n", "definition"], ["v", "definition"], ...]
+   */
+  private renderLocalDictResults(word: string, entries: [string, string][]): void {
+    const header = this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-word-header' });
+    header.createSpan({ cls: 'pcai-dict-word', text: word });
+    header.createSpan({ cls: 'pcai-dict-source', text: ' (WordNet)' });
+
+    // Group by part of speech
+    const byPos = new Map<string, string[]>();
+    for (const [pos, def] of entries) {
+      const arr = byPos.get(pos) ?? [];
+      arr.push(def);
+      byPos.set(pos, arr);
+    }
+
+    for (const [pos, defs] of byPos) {
+      const meaningDiv = this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-meaning' });
+      meaningDiv.createDiv({ cls: 'pcai-dict-pos', text: POS_LABELS[pos] ?? pos });
+
+      const list = meaningDiv.createEl('ol', { cls: 'pcai-dict-defs' });
+      for (const def of defs) {
+        const li = list.createEl('li');
+        li.createSpan({ cls: 'pcai-dict-def-text', text: def });
+      }
+    }
+  }
+
+  /**
+   * Renders results from the free dictionary API.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private renderApiDictResults(entries: any[]): void {
+    for (const entry of entries) {
+      const wordDiv = this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-word-header' });
+      wordDiv.createSpan({ cls: 'pcai-dict-word', text: entry.word ?? '' });
+      if (entry.phonetic) {
+        wordDiv.createSpan({ cls: 'pcai-dict-phonetic', text: ` ${entry.phonetic}` });
+      }
+
+      if (!Array.isArray(entry.meanings)) continue;
+
+      for (const meaning of entry.meanings) {
+        const meaningDiv = this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-meaning' });
+        meaningDiv.createDiv({ cls: 'pcai-dict-pos', text: meaning.partOfSpeech ?? '' });
+
+        if (!Array.isArray(meaning.definitions)) continue;
+
+        const list = meaningDiv.createEl('ol', { cls: 'pcai-dict-defs' });
+        for (const def of meaning.definitions.slice(0, 5)) {
+          const li = list.createEl('li');
+          li.createSpan({ cls: 'pcai-dict-def-text', text: def.definition ?? '' });
+          if (def.example) {
+            li.createDiv({ cls: 'pcai-dict-example', text: `"${def.example}"` });
+          }
+        }
+      }
     }
   }
 

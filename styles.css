@@ -12,11 +12,17 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 3px 6px;
-  border-radius: 4px;
+  padding: 4px;
+  border-radius: var(--radius-s);
   color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pcai-icon-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5px;
 }
 .pcai-icon-btn:hover {
   background: var(--background-modifier-hover);
@@ -674,15 +680,14 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--background-modifier-border);
 }
-.pcai-library-section:first-child {
-  flex: 0 1 auto;
-  max-height: 45%;
-  overflow: hidden;
+.pcai-library-section:last-child {
+  border-bottom: none;
 }
 .pcai-annotations-section {
-  flex: 1;
-  border-top: 1px solid var(--background-modifier-border);
+  flex: 1 1 0;
   overflow: hidden;
 }
 .pcai-library-section-header {
@@ -693,6 +698,55 @@
   letter-spacing: 0.05em;
   color: var(--text-faint);
   flex-shrink: 0;
+}
+
+/* Collapsible headers */
+.pcai-collapsible {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+.pcai-collapsible:hover {
+  color: var(--text-muted);
+}
+.pcai-collapse-chevron {
+  display: flex;
+  align-items: center;
+  transition: transform 0.15s ease;
+}
+.pcai-collapse-chevron svg {
+  width: 10px;
+  height: 10px;
+}
+.pcai-library-section:not(.pcai-collapsed) > .pcai-collapsible > .pcai-collapse-chevron {
+  transform: rotate(90deg);
+}
+.pcai-collapsed > .pcai-section-content {
+  display: none;
+}
+
+/* Section content sizing */
+.pcai-files-section .pcai-section-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
+}
+.pcai-outline-section .pcai-section-content {
+  max-height: 250px;
+  overflow-y: auto;
+}
+.pcai-dictionary-section .pcai-section-content {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+.pcai-annotations-section .pcai-section-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
 }
 .pcai-library-search {
   margin: 0 8px 6px;
@@ -753,6 +807,47 @@
   font-size: 12px;
   color: var(--text-faint);
   font-style: italic;
+}
+
+/* Color filter row */
+.pcai-color-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.pcai-color-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  gap: 3px;
+}
+.pcai-color-filter-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+.pcai-color-filter-btn.pcai-color-filter-active {
+  background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border);
+  color: var(--text-normal);
+  font-weight: 500;
+}
+.pcai-color-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* Annotation list */
@@ -1024,13 +1119,7 @@
 
 /* ── Outline / TOC panel ─────────────────────────── */
 
-.pcai-outline-panel {
-  max-height: 300px;
-  overflow-y: auto;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  flex-shrink: 0;
-}
+/* Outline items (sidebar) */
 .pcai-outline-empty {
   padding: 12px;
   text-align: center;
@@ -1048,6 +1137,92 @@
 }
 .pcai-outline-item:hover {
   background: var(--background-modifier-hover);
+}
+
+/* ── Dictionary ────────────────────────────────── */
+.pcai-dict-search {
+  margin: 4px 8px 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  outline: none;
+  display: block;
+  width: calc(100% - 16px);
+  box-sizing: border-box;
+}
+.pcai-dict-search:focus {
+  border-color: var(--interactive-accent);
+}
+.pcai-dict-results {
+  padding: 0 8px 4px;
+}
+.pcai-dict-loading,
+.pcai-dict-empty {
+  padding: 12px 4px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.pcai-dict-word-header {
+  padding: 4px 4px 2px;
+}
+.pcai-dict-word {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+.pcai-dict-phonetic {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.pcai-dict-meaning {
+  margin: 4px 0 8px;
+}
+.pcai-dict-pos {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--interactive-accent);
+  font-style: italic;
+  padding: 2px 4px;
+}
+.pcai-dict-defs {
+  margin: 2px 0 0 16px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-normal);
+  line-height: 1.4;
+}
+.pcai-dict-defs li {
+  margin-bottom: 4px;
+}
+.pcai-dict-def-text {
+  color: var(--text-normal);
+}
+.pcai-dict-example {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+.pcai-dict-source {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* ── Settings color swatch ─────────────────────── */
+.pcai-settings-color-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 /* ── Canvas inline PDF ──────────────────────────── */
@@ -1076,14 +1251,70 @@
   border-radius: 0;
 }
 
-/* Disable the content blocker on injected PDF nodes */
-.canvas-node-container:has(.pcai-canvas-pdf) > .canvas-node-content-blocker {
-  pointer-events: none !important;
+/* Single-page spread mode: no scroll, flush rendering */
+.pcai-canvas-pdf-single .pcai-canvas-scroll {
+  overflow: hidden;
+}
+.pcai-canvas-pdf-single .pcai-canvas-pages {
+  padding: 0;
+  gap: 0;
+}
+.pcai-canvas-pdf-single .pcai-page-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+}
+.pcai-canvas-pdf-single .pcai-page-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
 }
 
-/* Force text selection inside canvas PDF */
-.pcai-canvas-pdf .textLayer > span {
+/* Interactive mode: content blocker disabled, subtle glow to indicate state */
+.pcai-interactive {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* Force text selection inside canvas PDF only when interactive */
+.pcai-interactive .textLayer > span {
   pointer-events: auto !important;
   user-select: text !important;
   -webkit-user-select: text !important;
+}
+
+/* ── Spread options modal ──────────────────────── */
+.pcai-spread-modal h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.pcai-spread-modal-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.pcai-spread-modal-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 80px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  cursor: pointer;
+  font-size: 24px;
+  color: var(--text-normal);
+  transition: border-color 0.15s, background 0.15s;
+}
+.pcai-spread-modal-btn:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+.pcai-spread-modal-label {
+  font-size: 13px;
+  margin-top: 4px;
+  color: var(--text-muted);
 }

@@ -1,6 +1,7 @@
-import { Plugin, Notice, TFile, FileSystemAdapter, normalizePath, Menu, ItemView } from 'obsidian';
+import { Plugin, Notice, TFile, Menu, ItemView, Modal } from 'obsidian';
 import type { EventRef } from 'obsidian';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorkerText from 'pdfjs-worker-inline';
 
 import { DEFAULT_SETTINGS, PdfCanvasAiSettingTab } from './settings';
 import type { PluginSettings } from './settings';
@@ -14,6 +15,47 @@ import { AI_CHAT_VIEW_TYPE, AiChatView } from './views/AiChatView';
 import { PDF_VIEWER_VIEW_TYPE, PdfViewerView } from './views/PdfViewerView';
 import { getSelectedPdfNodes, getAllCanvasPdfNodes } from './canvas/canvasUtils';
 import { CanvasPdfInjector } from './canvas/canvasPdfInjector';
+
+type SpreadDirection = 'down' | 'right';
+
+class SpreadOptionsModal extends Modal {
+  private onChoose: (direction: SpreadDirection) => void;
+
+  constructor(app: Modal['app'], onChoose: (direction: SpreadDirection) => void) {
+    super(app);
+    this.onChoose = onChoose;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.addClass('pcai-spread-modal');
+    contentEl.createEl('h3', { text: 'Spread PDF Pages' });
+
+    const row = contentEl.createDiv({ cls: 'pcai-spread-modal-row' });
+
+    const downBtn = row.createEl('button', { cls: 'pcai-spread-modal-btn' });
+    downBtn.createSpan({ text: '\u2193' }); // ↓
+    downBtn.createEl('br');
+    downBtn.createSpan({ cls: 'pcai-spread-modal-label', text: 'Down' });
+    downBtn.addEventListener('click', () => {
+      this.close();
+      this.onChoose('down');
+    });
+
+    const rightBtn = row.createEl('button', { cls: 'pcai-spread-modal-btn' });
+    rightBtn.createSpan({ text: '\u2192' }); // →
+    rightBtn.createEl('br');
+    rightBtn.createSpan({ cls: 'pcai-spread-modal-label', text: 'Right' });
+    rightBtn.addEventListener('click', () => {
+      this.close();
+      this.onChoose('right');
+    });
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
 
 export default class PdfCanvasAiPlugin extends Plugin {
   settings!: PluginSettings;
@@ -68,7 +110,14 @@ export default class PdfCanvasAiPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const saved = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    // Deep-merge colorLabels so partial saves don't drop defaults
+    this.settings.colorLabels = Object.assign(
+      {},
+      DEFAULT_SETTINGS.colorLabels,
+      saved?.colorLabels,
+    );
   }
 
   async saveSettings(): Promise<void> {
@@ -79,16 +128,11 @@ export default class PdfCanvasAiPlugin extends Plugin {
   // ─── pdfjs worker setup ────────────────────────────────────────────────────
 
   private setupPdfjsWorker(): void {
-    const adapter = this.app.vault.adapter;
-    if (adapter instanceof FileSystemAdapter) {
-      // The worker file is copied alongside main.js by esbuild.config.mjs
-      const workerUrl = adapter.getResourcePath(
-        normalizePath(`${this.manifest.dir}/pdf.worker.min.js`),
-      );
-      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-    } else {
-      console.warn('PDF Canvas AI: non-filesystem adapter, pdfjs worker may fail');
-    }
+    // Worker source is inlined at build time by the pdfjs-worker-inline esbuild plugin.
+    // We create a Blob URL so pdfjs can spawn the worker without a separate file.
+    const blob = new Blob([pdfjsWorkerText], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
   }
 
   // ─── Views ─────────────────────────────────────────────────────────────────
@@ -202,6 +246,30 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .setIcon('bot')
           .onClick(() => {
             this.openFileInViewerAndAsk(file).catch((e: unknown) => console.error(e));
+          }),
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle('Spread PDF pages')
+          .setIcon('layout-grid')
+          .onClick(() => {
+            new SpreadOptionsModal(this.app, (direction) => {
+              this.spreadPdfPages(file, node, direction).catch((e: unknown) => {
+                console.error('PDF Canvas AI — spreadPdfPages error:', e);
+                new Notice('PDF Canvas AI: Failed to spread PDF pages.');
+              });
+            }).open();
+          }),
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle('Extract current page')
+          .setIcon('scissors')
+          .onClick(() => {
+            this.extractCurrentPage(file, node).catch((e: unknown) => {
+              console.error('PDF Canvas AI — extractCurrentPage error:', e);
+              new Notice('PDF Canvas AI: Failed to extract page.');
+            });
           }),
       );
     });
@@ -511,6 +579,142 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const view = this.getAiSidebarView();
     if (view) view.setContextScope('pdf');
     new Notice('PDF Canvas AI: Context set. Type your question in the sidebar.');
+  }
+
+  /**
+   * Spread a PDF into individual page nodes on the canvas.
+   * Each page becomes a text node with a %%pcai-spread:...:N%% marker
+   * that our injector detects and replaces with a pdfjs page renderer.
+   * This avoids file nodes (which trigger the PDF viewer intercept).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async spreadPdfPages(file: TFile, node: any, direction: SpreadDirection): Promise<void> {
+    const canvas = this.getActiveCanvas();
+    if (!canvas) {
+      new Notice('PDF Canvas AI: No active canvas found.');
+      return;
+    }
+
+    // Load PDF to get page count and dimensions
+    const buffer = await this.app.vault.readBinary(file);
+    const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+    const numPages = pdfDoc.numPages;
+
+    if (numPages === 0) {
+      pdfDoc.destroy();
+      new Notice('PDF Canvas AI: PDF has no pages.');
+      return;
+    }
+
+    // Compute page aspect ratio from first page
+    const firstPage = await pdfDoc.getPage(1);
+    const vp = firstPage.getViewport({ scale: 1 });
+    const aspectRatio = vp.height / vp.width;
+    pdfDoc.destroy();
+
+    // Get the original node position
+    const nodeData = typeof node.getData === 'function' ? node.getData() : node;
+    const originX: number = nodeData.x ?? node.x ?? 0;
+    const originY: number = nodeData.y ?? node.y ?? 0;
+
+    const pageWidth = 400;
+    const pageHeight = Math.round(pageWidth * aspectRatio);
+    const gap = 20;
+
+    const notice = new Notice(`PDF Canvas AI: Spreading ${numPages} pages…`, 0);
+    try {
+      // Remove the original node
+      if (typeof canvas.removeNode === 'function') {
+        canvas.removeNode(node);
+      }
+
+      // Create one text node per page with spread marker
+      for (let i = 0; i < numPages; i++) {
+        const pageNum = i + 1;
+        const x = direction === 'right'
+          ? originX + i * (pageWidth + gap)
+          : originX;
+        const y = direction === 'down'
+          ? originY + i * (pageHeight + gap)
+          : originY;
+        const markerText = `%%pcai-spread:${file.path}:${pageNum}%%`;
+
+        if (typeof canvas.createTextNode === 'function') {
+          canvas.createTextNode({
+            pos: { x, y },
+            size: { width: pageWidth, height: pageHeight },
+            text: markerText,
+            focus: false,
+            save: false,
+          });
+        } else {
+          new Notice('PDF Canvas AI: Canvas API not available.');
+          return;
+        }
+      }
+
+      if (typeof canvas.requestSave === 'function') {
+        canvas.requestSave();
+      }
+
+      new Notice(`PDF Canvas AI: Spread ${numPages} pages on canvas.`);
+    } finally {
+      notice.hide();
+    }
+  }
+
+  /**
+   * Extract the currently visible page of a PDF node as a standalone
+   * single-page spread node, positioned to the right of the source.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async extractCurrentPage(file: TFile, node: any): Promise<void> {
+    const canvas = this.getActiveCanvas();
+    if (!canvas) {
+      new Notice('PDF Canvas AI: No active canvas found.');
+      return;
+    }
+
+    const renderer = this.canvasInjector.getRendererForNode(node);
+    const pageNum = renderer?.getCurrentVisiblePage() ?? 1;
+
+    // Get source node position & dimensions
+    const nodeData = typeof node.getData === 'function' ? node.getData() : node;
+    const originX: number = nodeData.x ?? node.x ?? 0;
+    const originY: number = nodeData.y ?? node.y ?? 0;
+    const nodeW: number = nodeData.width ?? node.width ?? 400;
+
+    // Compute page aspect ratio
+    const buffer = await this.app.vault.readBinary(file);
+    const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+    const page = await pdfDoc.getPage(pageNum);
+    const vp = page.getViewport({ scale: 1 });
+    const aspectRatio = vp.height / vp.width;
+    pdfDoc.destroy();
+
+    const pageWidth = 400;
+    const pageHeight = Math.round(pageWidth * aspectRatio);
+    const x = originX + nodeW + 40;
+    const y = originY;
+    const markerText = `%%pcai-spread:${file.path}:${pageNum}%%`;
+
+    if (typeof canvas.createTextNode === 'function') {
+      canvas.createTextNode({
+        pos: { x, y },
+        size: { width: pageWidth, height: pageHeight },
+        text: markerText,
+        focus: false,
+      });
+    } else {
+      new Notice('PDF Canvas AI: Canvas API not available.');
+      return;
+    }
+
+    if (typeof canvas.requestSave === 'function') {
+      canvas.requestSave();
+    }
+
+    new Notice(`PDF Canvas AI: Extracted page ${pageNum}.`);
   }
 
   private async openFileInViewerAndAsk(file: TFile): Promise<void> {

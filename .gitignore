@@ -2,6 +2,7 @@
 main.js
 *.js.map
 pdf.worker.min.js
+dictionary.json
 
 # Dependencies
 node_modules/

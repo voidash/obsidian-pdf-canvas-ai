@@ -1,6 +1,6 @@
 {
   "name": "obsidian-pdf-canvas-ai",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Obsidian plugin: Zotero-style PDF reader with highlights, annotations, AI chat, and canvas integration",
   "main": "main.js",
   "scripts": {
@@ -26,7 +26,8 @@
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.25.0",
     "obsidian": "latest",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "wordnet-db": "^3.1.14"
   },
   "dependencies": {
     "nanoid": "^3.3.7",
