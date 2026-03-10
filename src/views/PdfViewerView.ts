@@ -125,6 +125,7 @@ export class PdfViewerView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    await Promise.resolve();
     this.buildUI();
     this.refreshFileList();
   }
@@ -775,7 +776,7 @@ export class PdfViewerView extends ItemView {
     copyBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       void navigator.clipboard.writeText(this.selectedText).catch((err: unknown) => {
-        new Notice('PDF tools: Copy failed.');
+        new Notice('Copy failed.');
         console.error('PDF Tools \u2014 clipboard error:', err);
       });
       this.hideSelectionMenu();
@@ -1409,7 +1410,7 @@ export class PdfViewerView extends ItemView {
       if (this.currentFile) view.setCurrentPdf(this.currentFile);
       view.setContextScope('pdf');
     }
-    new Notice('PDF tools: Type your question in the sidebar.');
+    new Notice('Type your question in the sidebar.');
   }
 
   private async askAboutSelection(): Promise<void> {
@@ -1493,13 +1494,13 @@ export class PdfViewerView extends ItemView {
 
   private async exportAnnotations(): Promise<void> {
     if (!this.currentFile) {
-      new Notice('PDF tools: No PDF open.');
+      new Notice('No PDF open.');
       return;
     }
 
     const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
     if (highlights.length === 0) {
-      new Notice('PDF tools: No annotations to export.');
+      new Notice('No annotations to export.');
       return;
     }
 
@@ -1556,7 +1557,7 @@ export class PdfViewerView extends ItemView {
       month: 'long',
       day: 'numeric',
     });
-    lines.push(`*Exported from PDF Tools on ${dateStr}*`);
+    lines.push(`*Exported on ${dateStr}*`);
     lines.push('');
 
     const content = lines.join('\n');
@@ -1573,16 +1574,16 @@ export class PdfViewerView extends ItemView {
       const existing = this.app.vault.getAbstractFileByPath(mdPath);
       if (existing instanceof TFile) {
         await this.app.vault.modify(existing, content);
-        new Notice(`PDF Tools: Updated "${mdPath}".`);
+        new Notice(`Updated "${mdPath}".`);
         await this.app.workspace.getLeaf('tab').openFile(existing);
       } else {
         const newFile = await this.app.vault.create(mdPath, content);
-        new Notice(`PDF Tools: Created "${mdPath}".`);
+        new Notice(`Created "${mdPath}".`);
         await this.app.workspace.getLeaf('tab').openFile(newFile);
       }
     } catch (err) {
       console.error('PDF Tools: annotation export error:', err);
-      new Notice(`PDF Tools: Export failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+      new Notice(`Export failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -1590,13 +1591,13 @@ export class PdfViewerView extends ItemView {
 
   private async summarizeAnnotations(): Promise<void> {
     if (!this.currentFile) {
-      new Notice('PDF tools: No PDF open.');
+      new Notice('No PDF open.');
       return;
     }
 
     const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
     if (highlights.length === 0) {
-      new Notice('PDF tools: No annotations to summarize.');
+      new Notice('No annotations to summarize.');
       return;
     }
 
@@ -1717,14 +1718,14 @@ export class PdfViewerView extends ItemView {
 
   private addCurrentPdfToCanvas(): void {
     if (!this.currentFile) {
-      new Notice('PDF tools: No PDF open.');
+      new Notice('No PDF open.');
       return;
     }
     try {
       this.plugin.addToCanvas(this.currentFile);
     } catch (e: unknown) {
       console.error('PDF Tools: addToCanvas error:', e);
-      new Notice('PDF tools: Failed to add PDF to canvas.');
+      new Notice('Failed to add PDF to canvas.');
     }
   }
 
@@ -1770,7 +1771,7 @@ export class PdfViewerView extends ItemView {
 
     // 2. Download from GitHub release
     try {
-      new Notice('PDF tools: Downloading dictionary (first-time setup)…');
+      new Notice('Downloading dictionary (first-time setup)…');
       const response = await requestUrl({ url: PdfViewerView.DICT_DOWNLOAD_URL });
       if (response.status === 200 && response.text) {
         // Save to plugin dir for future use
@@ -1778,13 +1779,13 @@ export class PdfViewerView extends ItemView {
         this.localDict = JSON.parse(response.text) as LocalDict;
         const count = Object.keys(this.localDict).length;
         console.debug(`PDF Tools — downloaded dictionary (${count} words)`);
-        new Notice(`PDF Tools: Dictionary ready (${count.toLocaleString()} words)`);
+        new Notice(`Dictionary ready (${count.toLocaleString()} words).`);
         this.localDictLoading = false;
         return this.localDict;
       }
     } catch (err) {
       console.warn('PDF Tools — dictionary download failed:', err);
-      new Notice('PDF tools: Dictionary download failed. Using online fallback.');
+      new Notice('Dictionary download failed. Using online fallback.');
     }
 
     this.localDictLoading = false;

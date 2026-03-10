@@ -69,6 +69,7 @@ export class AiSidebarView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    await Promise.resolve();
     this.toolExecutor = new VaultToolExecutor(
       this.app,
       this.plugin.pdfService,
@@ -80,6 +81,7 @@ export class AiSidebarView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    await Promise.resolve();
     this.closed = true;
   }
 

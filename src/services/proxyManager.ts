@@ -1,4 +1,4 @@
-import { Notice } from 'obsidian';
+import { Notice, requestUrl } from 'obsidian';
 import { spawn } from 'child_process';
 import type { ChildProcess } from 'child_process';
 
@@ -28,22 +28,22 @@ export class ProxyManager {
   // ─── Private ───────────────────────────────────────────────────────────────
 
   private async isRunning(): Promise<boolean> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 1500);
     try {
-      // eslint-disable-next-line no-restricted-globals -- Using fetch for local subprocess health check; requestUrl lacks AbortController signal support
-      const res = await fetch(this.baseUrl, { signal: ctrl.signal });
+      const res = await Promise.race([
+        requestUrl({ url: this.baseUrl, throw: false }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 1500),
+        ),
+      ]);
       // Any HTTP response (even 404/401) means the server is up
       return res.status < 500;
     } catch {
       return false;
-    } finally {
-      clearTimeout(timer);
     }
   }
 
   private async start(): Promise<void> {
-    const notice = new Notice('PDF tools: Starting AI proxy\u2026', 0);
+    const notice = new Notice('Starting AI proxy\u2026', 0);
 
     // Use a login shell so the user's PATH (e.g. ~/.npm-global/bin, /usr/local/bin)
     // is available even when Obsidian is launched from the macOS dock.
@@ -73,7 +73,7 @@ export class ProxyManager {
       notice.hide();
       this.process = null;
       new Notice(
-        `PDF tools: Could not start proxy — ${err.message}\n` +
+        `Could not start proxy — ${err.message}\n` +
           'Install with: npm install -g claude-max-api-proxy  (binary: claude-max-api)',
         10000,
       );
@@ -88,11 +88,11 @@ export class ProxyManager {
     notice.hide();
 
     if (ready) {
-      new Notice('PDF tools: AI proxy ready.', 2000);
+      new Notice('AI proxy ready.', 2000);
     } else if (this.process) {
       // Still running but not answering — might need more time; don't kill it.
       new Notice(
-        'PDF tools: Proxy is starting slowly \u2014 AI will be available shortly.',
+        'Proxy is starting slowly \u2014 AI will be available shortly.',
         4000,
       );
     }

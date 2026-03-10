@@ -293,9 +293,9 @@ export class VaultToolExecutor {
         const data = typeof edge.getData === 'function'
           ? (edge.getData as () => Record<string, unknown>)()
           : edge;
-        if (data.fromNode && data.toNode) {
-          const label = data.label ? ` "${String(data.label)}"` : '';
-          items.push(`[Connection] ${String(data.fromNode)} -> ${String(data.toNode)}${label}`);
+        if (typeof data.fromNode === 'string' && typeof data.toNode === 'string') {
+          const label = typeof data.label === 'string' ? ` "${data.label}"` : '';
+          items.push(`[Connection] ${data.fromNode} -> ${data.toNode}${label}`);
         }
       }
     }

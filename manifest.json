@@ -1,7 +1,7 @@
 {
   "id": "pdf-tools",
   "name": "PDF Tools",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "minAppVersion": "1.4.0",
   "description": "Zotero-style PDF reader with highlights, annotations, and AI chat. Spatial canvas integration for visual knowledge work.",
   "author": "voidash",

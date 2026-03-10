@@ -245,7 +245,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
       this.addCommand({
         id: 'ask-selected-pdfs',
-        name: 'Ask Claude about selected canvas PDF(s)',
+        name: 'Ask Claude about selected canvas pdfs',
         callback: () => {
           void this.askAboutPdfs('selected').catch((e: unknown) => console.error(e));
         },
@@ -319,7 +319,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
             new SpreadOptionsModal(this.app, (direction) => {
               void this.spreadPdfPages(file, node, direction).catch((e: unknown) => {
                 console.error('PDF Tools — spreadPdfPages error:', e);
-                new Notice('PDF tools: Failed to spread PDF pages.');
+                new Notice('Failed to spread PDF pages.');
               });
             }).open();
           }),
@@ -331,7 +331,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .onClick(() => {
             void this.extractCurrentPage(file, node).catch((e: unknown) => {
               console.error('PDF Tools — extractCurrentPage error:', e);
-              new Notice('PDF tools: Failed to extract page.');
+              new Notice('Failed to extract page.');
             });
           }),
       );
@@ -471,7 +471,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const leaf = leaves[0];
     if (!leaf) {
       if (attempt >= 2) {
-        new Notice('PDF tools: Could not open PDF viewer pane.');
+        new Notice('Could not open PDF viewer pane.');
         return;
       }
       await this.activatePdfViewer();
@@ -534,7 +534,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       return '[No PDF files found. Open a canvas with PDF nodes, or open a PDF in the viewer.]';
     }
 
-    const notice = new Notice(`PDF tools: Extracting text from ${nodes.length} PDF(s)…`, 0);
+    const notice = new Notice(`Extracting text from ${nodes.length} PDF(s)…`, 0);
     try {
       const parts = await Promise.all(
         nodes.map(async ({ file }) => {
@@ -561,7 +561,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
     // Collect all node content
     if (canvas.nodes) {
-      const notice = new Notice('PDF tools: Reading canvas content...', 0);
+      const notice = new Notice('Reading canvas content…', 0);
       try {
         for (const node of canvas.nodes.values()) {
           const nodeData: CanvasNodeData = typeof node.getData === 'function'
@@ -629,7 +629,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async openSelectedCanvasPdf(): Promise<void> {
     const nodes = getSelectedPdfNodes(this.app);
     if (nodes.length === 0) {
-      new Notice('PDF tools: No PDF node selected on canvas.');
+      new Notice('No PDF node selected on canvas.');
       return;
     }
     await this.activatePdfViewer();
@@ -640,7 +640,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     await this.activateAiSidebar();
     const view = this.getAiSidebarView();
     if (view) view.setContextScope('pdf');
-    new Notice('PDF tools: Context set. Type your question in the sidebar.');
+    new Notice('Context set. Type your question in the sidebar.');
   }
 
   /**
@@ -652,7 +652,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async spreadPdfPages(file: TFile, node: unknown, direction: SpreadDirection): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF tools: No active canvas found.');
+      new Notice('No active canvas found.');
       return;
     }
 
@@ -663,7 +663,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
     if (numPages === 0) {
       void pdfDoc.destroy();
-      new Notice('PDF tools: PDF has no pages.');
+      new Notice('PDF has no pages.');
       return;
     }
 
@@ -683,7 +683,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const pageHeight = Math.round(pageWidth * aspectRatio);
     const gap = 20;
 
-    const notice = new Notice(`PDF tools: Spreading ${numPages} pages…`, 0);
+    const notice = new Notice(`Spreading ${numPages} pages…`, 0);
     try {
       // Remove the original node
       if (typeof canvas.removeNode === 'function') {
@@ -710,7 +710,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
             save: false,
           });
         } else {
-          new Notice('PDF tools: Canvas API not available.');
+          new Notice('Canvas API not available.');
           return;
         }
       }
@@ -719,7 +719,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         canvas.requestSave();
       }
 
-      new Notice(`PDF tools: Spread ${numPages} pages on canvas.`);
+      new Notice(`Spread ${numPages} pages on canvas.`);
     } finally {
       notice.hide();
     }
@@ -732,7 +732,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async extractCurrentPage(file: TFile, node: unknown): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF tools: No active canvas found.');
+      new Notice('No active canvas found.');
       return;
     }
 
@@ -768,7 +768,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         focus: false,
       });
     } else {
-      new Notice('PDF tools: Canvas API not available.');
+      new Notice('Canvas API not available.');
       return;
     }
 
@@ -776,18 +776,18 @@ export default class PdfCanvasAiPlugin extends Plugin {
       canvas.requestSave();
     }
 
-    new Notice(`PDF tools: Extracted page ${pageNum}.`);
+    new Notice(`Extracted page ${pageNum}.`);
   }
 
   addToCanvas(file: TFile): void {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF tools: No active canvas. Open a canvas first.');
+      new Notice('No active canvas. Open a canvas first.');
       return;
     }
 
     if (typeof canvas.createFileNode !== 'function' || typeof canvas.createTextNode !== 'function') {
-      new Notice('PDF tools: Canvas API not available.');
+      new Notice('Canvas API not available.');
       return;
     }
 
@@ -842,7 +842,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       canvas.requestSave();
     }
 
-    new Notice(`PDF tools: Added "${file.basename}" to canvas.`);
+    new Notice(`Added "${file.basename}" to canvas.`);
   }
 
   private async openFileInViewerAndAsk(file: TFile): Promise<void> {
@@ -899,7 +899,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     // Cap results
     const filesToInclude = matchingFiles.slice(0, 10);
 
-    const notice = new Notice(`PDF tools: Reading ${filesToInclude.length} vault files…`, 0);
+    const notice = new Notice(`Reading ${filesToInclude.length} vault files…`, 0);
     try {
       for (const file of filesToInclude) {
         try {

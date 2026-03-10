@@ -173,7 +173,6 @@ export class AiService {
 
     const toolCalls: ToolCallAccumulator[] = [];
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- OpenAI SDK Stream<T> implements AsyncIterable<T> but TS cannot resolve it through the declaration file
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
       if (!delta) continue;
@@ -302,10 +301,9 @@ export class AiService {
 
     try {
       const baseUrl = this.settings.baseUrl.replace(/\/v1\/?$/, '');
-      // Using fetch instead of Obsidian's requestUrl because we need streaming
-      // SSE via ReadableStream (res.body.getReader()), which requestUrl does not support.
-      // eslint-disable-next-line no-restricted-globals -- Using fetch for Anthropic SSE streaming; requestUrl does not support ReadableStream
-      const res = await fetch(`${baseUrl}/v1/messages`, {
+      // Using globalThis.fetch because Anthropic SSE streaming requires ReadableStream
+      // (res.body.getReader()), which Obsidian's requestUrl does not support.
+      const res = await globalThis.fetch(`${baseUrl}/v1/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

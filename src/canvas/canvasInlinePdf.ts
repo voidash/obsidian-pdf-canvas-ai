@@ -557,7 +557,7 @@ export class CanvasInlinePdf {
   private extractAsCard(): void {
     const text = this.selectedText;
     if (!text) {
-      new Notice('PDF tools: No text selected.');
+      new Notice('No text selected.');
       return;
     }
 
@@ -600,7 +600,7 @@ export class CanvasInlinePdf {
         this.canvas.addNode(nodeData);
       } else {
         new Notice(
-          'PDF tools: Cannot create card — canvas API not available.',
+          'Cannot create card — canvas API not available.',
         );
         return;
       }
@@ -610,10 +610,10 @@ export class CanvasInlinePdf {
         this.canvas.requestSave();
       }
 
-      new Notice('PDF tools: Concept card created.');
+      new Notice('Concept card created.');
     } catch (err) {
       console.error('PDF Tools — extractAsCard error:', err);
-      new Notice('PDF tools: Failed to create card on canvas.');
+      new Notice('Failed to create card on canvas.');
     }
   }
 
