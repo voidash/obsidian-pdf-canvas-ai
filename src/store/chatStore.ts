@@ -39,9 +39,9 @@ export class ChatStore {
       const adapter = this.app.vault.adapter;
       if (await adapter.exists(this.filePath)) {
         const raw = await adapter.read(this.filePath);
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
         if (parsed?.version === 1 && Array.isArray(parsed.conversations)) {
-          this.data = parsed as ChatData;
+          this.data = parsed as unknown as ChatData;
         }
       }
     } catch (e) {

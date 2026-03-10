@@ -294,8 +294,8 @@ export class VaultToolExecutor {
           ? (edge.getData as () => Record<string, unknown>)()
           : edge;
         if (data.fromNode && data.toNode) {
-          const label = data.label ? ` "${data.label}"` : '';
-          items.push(`[Connection] ${data.fromNode} -> ${data.toNode}${label}`);
+          const label = data.label ? ` "${String(data.label)}"` : '';
+          items.push(`[Connection] ${String(data.fromNode)} -> ${String(data.toNode)}${label}`);
         }
       }
     }

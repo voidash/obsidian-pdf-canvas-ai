@@ -186,7 +186,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setName('PDF Tools').setHeading();
+    new Setting(containerEl).setName('Basics').setHeading();
 
     // ── AI toggle ──
     new Setting(containerEl)
@@ -394,10 +394,10 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Annotation export format')
-      .setDesc('Format used when exporting annotations to a markdown note.')
+      .setDesc('Format used when exporting annotations to a Markdown note.')
       .addDropdown((dd) => {
         dd.addOption('callout', 'Callout blocks (> [!color])');
-        dd.addOption('plain', 'Plain markdown (quotes + bold labels)');
+        dd.addOption('plain', 'Plain Markdown (quotes + bold labels)');
         dd.setValue(this.plugin.settings.exportFormat);
         dd.onChange(async (value) => {
           this.plugin.settings.exportFormat = value as ExportFormat;
@@ -407,7 +407,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Dictionary source')
-      .setDesc('Where to look up word definitions. "Auto" tries the local WordNet dictionary first, then falls back to the online API.')
+      .setDesc('Where to look up word definitions. "auto" tries the local wordnet dictionary first, then falls back to the online API.')
       .addDropdown((dd) => {
         dd.addOption('auto', 'Auto (local + API fallback)');
         dd.addOption('local', 'Local dictionary only');

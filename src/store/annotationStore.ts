@@ -26,9 +26,9 @@ export class AnnotationStore {
   }
 
   async load(): Promise<void> {
-    const raw = await this.plugin.loadData();
+    const raw = await this.plugin.loadData() as Record<string, unknown> | null;
     if (raw?.version === 1 && typeof raw.highlights === 'object') {
-      this.data = raw as StoredData;
+      this.data = raw as unknown as StoredData;
       // Ensure readingProgress exists (migration from older data)
       if (!this.data.readingProgress) {
         this.data.readingProgress = {};

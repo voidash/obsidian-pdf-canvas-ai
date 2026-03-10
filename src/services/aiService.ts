@@ -101,7 +101,7 @@ export class AiService {
       // function signature; Obsidian's requestUrl is not a drop-in replacement.
       fetch: (url: RequestInfo | URL, init?: RequestInit) => {
         if (init?.headers) {
-          const headers = new Headers(init.headers as HeadersInit);
+          const headers = new Headers(init.headers);
           for (const key of [...headers.keys()]) {
             if (key.startsWith('x-stainless')) {
               headers.delete(key);
@@ -173,6 +173,7 @@ export class AiService {
 
     const toolCalls: ToolCallAccumulator[] = [];
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- OpenAI SDK Stream<T> implements AsyncIterable<T> but TS cannot resolve it through the declaration file
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
       if (!delta) continue;
@@ -303,6 +304,7 @@ export class AiService {
       const baseUrl = this.settings.baseUrl.replace(/\/v1\/?$/, '');
       // Using fetch instead of Obsidian's requestUrl because we need streaming
       // SSE via ReadableStream (res.body.getReader()), which requestUrl does not support.
+      // eslint-disable-next-line no-restricted-globals -- Using fetch for Anthropic SSE streaming; requestUrl does not support ReadableStream
       const res = await fetch(`${baseUrl}/v1/messages`, {
         method: 'POST',
         headers: {

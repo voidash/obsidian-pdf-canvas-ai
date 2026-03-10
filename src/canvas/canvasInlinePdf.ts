@@ -202,8 +202,8 @@ export class CanvasInlinePdf {
 
     const wrapper = this.pagesEl.querySelector(
       `[data-page="${pageNum}"]`,
-    ) as HTMLElement | null;
-    if (!wrapper) return;
+    );
+    if (!wrapper || !(wrapper instanceof HTMLElement)) return;
     wrapper.empty();
     wrapper.removeClass('pcai-page-placeholder');
 
@@ -214,7 +214,7 @@ export class CanvasInlinePdf {
     const dpr = window.devicePixelRatio || 1;
     const canvas = wrapper.createEl('canvas', {
       cls: 'pcai-page-canvas',
-    }) as HTMLCanvasElement;
+    });
     canvas.width = Math.round(vp.width * dpr);
     canvas.height = Math.round(vp.height * dpr);
     canvas.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
@@ -452,11 +452,11 @@ export class CanvasInlinePdf {
   private applyHighlightsToPage(pageNum: number): void {
     const wrapper = this.pagesEl.querySelector(
       `[data-page="${pageNum}"]`,
-    ) as HTMLElement | null;
+    );
     if (!wrapper) return;
     const layer = wrapper.querySelector(
       '.pcai-annotation-layer',
-    ) as HTMLElement | null;
+    );
     if (!layer) return;
 
     layer.empty();
@@ -468,11 +468,11 @@ export class CanvasInlinePdf {
   private renderHighlightOnPage(pageNum: number, h: Highlight): void {
     const wrapper = this.pagesEl.querySelector(
       `[data-page="${pageNum}"]`,
-    ) as HTMLElement | null;
+    );
     if (!wrapper) return;
     const layer = wrapper.querySelector(
       '.pcai-annotation-layer',
-    ) as HTMLElement | null;
+    );
     if (!layer) return;
 
     for (const rect of h.rects) {
@@ -557,7 +557,7 @@ export class CanvasInlinePdf {
   private extractAsCard(): void {
     const text = this.selectedText;
     if (!text) {
-      new Notice('PDF Tools: No text selected.');
+      new Notice('PDF tools: No text selected.');
       return;
     }
 
@@ -600,7 +600,7 @@ export class CanvasInlinePdf {
         this.canvas.addNode(nodeData);
       } else {
         new Notice(
-          'PDF Tools: Cannot create card — canvas API not available.',
+          'PDF tools: Cannot create card — canvas API not available.',
         );
         return;
       }
@@ -610,10 +610,10 @@ export class CanvasInlinePdf {
         this.canvas.requestSave();
       }
 
-      new Notice('PDF Tools: Concept card created.');
+      new Notice('PDF tools: Concept card created.');
     } catch (err) {
       console.error('PDF Tools — extractAsCard error:', err);
-      new Notice('PDF Tools: Failed to create card on canvas.');
+      new Notice('PDF tools: Failed to create card on canvas.');
     }
   }
 

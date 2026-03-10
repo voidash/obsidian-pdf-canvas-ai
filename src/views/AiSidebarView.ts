@@ -61,7 +61,7 @@ export class AiSidebarView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'PDF Tools';
+    return 'PDF tools';
   }
 
   getIcon(): string {
@@ -235,7 +235,7 @@ export class AiSidebarView extends ItemView {
     if (!this.activeConversation) {
       this.activeConversation = this.plugin.chatStore.create();
     }
-    return this.activeConversation!;
+    return this.activeConversation;
   }
 
   private newConversation(): void {
@@ -385,7 +385,7 @@ export class AiSidebarView extends ItemView {
 
     this.inputEl = inputArea.createEl('textarea', {
       cls: 'pcai-input',
-      attr: { placeholder: 'Ask about your documents\u2026 Use @ to attach files', rows: '3' },
+      attr: { placeholder: 'Ask about your documents\u2026 use @ to attach files', rows: '3' },
     });
 
     this.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -706,8 +706,8 @@ export class AiSidebarView extends ItemView {
         this.setStreaming(false);
 
         // Check if compaction is needed (background, non-blocking)
-        void this.maybeCompact(conv).catch((e) => {
-          console.error('PDF Tools: compaction error', e);
+        void this.maybeCompact(conv).catch((e: unknown) => {
+          console.error('PDF tools: compaction error', e);
         });
       },
       (errorMsg) => {
@@ -804,10 +804,10 @@ export class AiSidebarView extends ItemView {
   private showToolCallStatus(toolName: string, argsJson: string): void {
     let label = toolName;
     try {
-      const args = JSON.parse(argsJson);
-      if (toolName === 'search_vault' && args.query) {
+      const args = JSON.parse(argsJson) as Record<string, unknown>;
+      if (toolName === 'search_vault' && typeof args.query === 'string') {
         label = `Searching vault for \u201C${args.query}\u201D`;
-      } else if (toolName === 'read_file' && args.path) {
+      } else if (toolName === 'read_file' && typeof args.path === 'string') {
         label = `Reading ${args.path}`;
       } else if (toolName === 'list_files') {
         label = 'Listing vault files';

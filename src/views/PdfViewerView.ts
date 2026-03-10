@@ -22,6 +22,19 @@ interface PdfMetadata {
   creationDate?: string;
 }
 
+/** Shape returned by the free Dictionary API (dictionaryapi.dev). */
+interface DictApiEntry {
+  word?: string;
+  phonetic?: string;
+  meanings?: {
+    partOfSpeech?: string;
+    definitions?: { definition?: string; example?: string }[];
+  }[];
+}
+
+/** Shape of the locally-cached WordNet dictionary JSON. */
+type LocalDict = Record<string, [string, string][]>;
+
 export const PDF_VIEWER_VIEW_TYPE = 'pdf-tools-viewer';
 
 const MIN_SCALE = 0.5;
@@ -87,7 +100,7 @@ export class PdfViewerView extends ItemView {
   private annoSearchActive = false;
 
   // Embedded dictionary cache (loaded once from dictionary.json)
-  private localDict: Record<string, [string, string][]> | null = null;
+  private localDict: LocalDict | null = null;
   private localDictLoading = false;
 
   // Event handler refs for cleanup
@@ -635,7 +648,7 @@ export class PdfViewerView extends ItemView {
   }
 
   private scrollToPage(pageNum: number): void {
-    const targetEl = this.pagesEl.querySelector(`[data-page="${pageNum}"]`) as HTMLElement | null;
+    const targetEl = this.pagesEl.querySelector(`[data-page="${pageNum}"]`);
     if (targetEl) {
       targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
       if (this.pdfDoc) {
@@ -762,7 +775,7 @@ export class PdfViewerView extends ItemView {
     copyBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       void navigator.clipboard.writeText(this.selectedText).catch((err: unknown) => {
-        new Notice('PDF Tools: Copy failed.');
+        new Notice('PDF tools: Copy failed.');
         console.error('PDF Tools \u2014 clipboard error:', err);
       });
       this.hideSelectionMenu();
@@ -828,7 +841,7 @@ export class PdfViewerView extends ItemView {
 
     this.renderTasks.get(pageNum)?.cancel();
 
-    const wrapper = this.pagesEl.querySelector(`[data-page="${pageNum}"]`) as HTMLElement | null;
+    const wrapper = this.pagesEl.querySelector(`[data-page="${pageNum}"]`);
     if (!wrapper) return;
     wrapper.removeClass('pcai-page-placeholder');
 
@@ -871,7 +884,7 @@ export class PdfViewerView extends ItemView {
     wrapper.createDiv({ cls: 'pcai-annotation-layer' });
 
     if (pageNum === 1) {
-      this.pageInfoEl.setText(`1 / ${this.pdfDoc!.numPages}`);
+      this.pageInfoEl.setText(`1 / ${this.pdfDoc.numPages}`);
     }
 
     this.applyHighlightsToPage(pageNum);
@@ -908,7 +921,7 @@ export class PdfViewerView extends ItemView {
     }
 
     const target = Math.max(1, Math.min(this.pdfDoc.numPages, currentPage + delta));
-    const targetEl = this.pagesEl.querySelector(`[data-page="${target}"]`) as HTMLElement | null;
+    const targetEl = this.pagesEl.querySelector(`[data-page="${target}"]`);
     if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     this.pageInfoEl.setText(`${target} / ${this.pdfDoc.numPages}`);
   }
@@ -1238,7 +1251,7 @@ export class PdfViewerView extends ItemView {
     }
 
     const range = selection.getRangeAt(0);
-    const startNode = range.startContainer as Node;
+    const startNode = range.startContainer;
     const pageWrapper = (startNode.nodeType === Node.TEXT_NODE
       ? startNode.parentElement
       : startNode as Element
@@ -1319,9 +1332,9 @@ export class PdfViewerView extends ItemView {
 
   private applyHighlightsToPage(pageNum: number): void {
     if (!this.currentFile) return;
-    const wrapper = this.pagesEl.querySelector(`[data-page="${pageNum}"]`) as HTMLElement | null;
+    const wrapper = this.pagesEl.querySelector(`[data-page="${pageNum}"]`);
     if (!wrapper) return;
-    const layer = wrapper.querySelector('.pcai-annotation-layer') as HTMLElement | null;
+    const layer = wrapper.querySelector('.pcai-annotation-layer');
     if (!layer) return;
 
     layer.empty();
@@ -1331,10 +1344,10 @@ export class PdfViewerView extends ItemView {
   }
 
   private renderHighlightOnPage(pageNum: number, h: Highlight): void {
-    const wrapper = this.pagesEl.querySelector(`[data-page="${pageNum}"]`) as HTMLElement | null;
+    const wrapper = this.pagesEl.querySelector(`[data-page="${pageNum}"]`);
     if (!wrapper) return;
 
-    const layer = wrapper.querySelector('.pcai-annotation-layer') as HTMLElement | null;
+    const layer = wrapper.querySelector('.pcai-annotation-layer');
     if (!layer) return;
 
     for (const rect of h.rects) {
@@ -1396,7 +1409,7 @@ export class PdfViewerView extends ItemView {
       if (this.currentFile) view.setCurrentPdf(this.currentFile);
       view.setContextScope('pdf');
     }
-    new Notice('PDF Tools: Type your question in the sidebar.');
+    new Notice('PDF tools: Type your question in the sidebar.');
   }
 
   private async askAboutSelection(): Promise<void> {
@@ -1480,13 +1493,13 @@ export class PdfViewerView extends ItemView {
 
   private async exportAnnotations(): Promise<void> {
     if (!this.currentFile) {
-      new Notice('PDF Tools: No PDF open.');
+      new Notice('PDF tools: No PDF open.');
       return;
     }
 
     const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
     if (highlights.length === 0) {
-      new Notice('PDF Tools: No annotations to export.');
+      new Notice('PDF tools: No annotations to export.');
       return;
     }
 
@@ -1577,13 +1590,13 @@ export class PdfViewerView extends ItemView {
 
   private async summarizeAnnotations(): Promise<void> {
     if (!this.currentFile) {
-      new Notice('PDF Tools: No PDF open.');
+      new Notice('PDF tools: No PDF open.');
       return;
     }
 
     const highlights = this.plugin.annotationStore.getForFile(this.currentFile.path);
     if (highlights.length === 0) {
-      new Notice('PDF Tools: No annotations to summarize.');
+      new Notice('PDF tools: No annotations to summarize.');
       return;
     }
 
@@ -1704,14 +1717,14 @@ export class PdfViewerView extends ItemView {
 
   private addCurrentPdfToCanvas(): void {
     if (!this.currentFile) {
-      new Notice('PDF Tools: No PDF open.');
+      new Notice('PDF tools: No PDF open.');
       return;
     }
     try {
       this.plugin.addToCanvas(this.currentFile);
     } catch (e: unknown) {
       console.error('PDF Tools: addToCanvas error:', e);
-      new Notice('PDF Tools: Failed to add PDF to canvas.');
+      new Notice('PDF tools: Failed to add PDF to canvas.');
     }
   }
 
@@ -1724,7 +1737,7 @@ export class PdfViewerView extends ItemView {
    * Loads the WordNet dictionary.json — tries local cache first, then
    * auto-downloads from the GitHub release and saves to the plugin dir.
    */
-  private async loadLocalDictionary(): Promise<Record<string, [string, string][]>> {
+  private async loadLocalDictionary(): Promise<LocalDict> {
     if (this.localDict) return this.localDict;
     if (this.localDictLoading) {
       // Wait for the in-flight load to complete
@@ -1746,10 +1759,10 @@ export class PdfViewerView extends ItemView {
     try {
       const raw = await adapter.read(dictPath);
       if (raw) {
-        this.localDict = JSON.parse(raw);
-        console.debug(`PDF Tools — loaded dictionary (${Object.keys(this.localDict!).length} words) from cache`);
+        this.localDict = JSON.parse(raw) as LocalDict;
+        console.debug(`PDF Tools — loaded dictionary (${Object.keys(this.localDict).length} words) from cache`);
         this.localDictLoading = false;
-        return this.localDict!;
+        return this.localDict;
       }
     } catch {
       // File doesn't exist yet — will download below
@@ -1757,26 +1770,26 @@ export class PdfViewerView extends ItemView {
 
     // 2. Download from GitHub release
     try {
-      new Notice('PDF Tools: Downloading dictionary (first-time setup)…');
+      new Notice('PDF tools: Downloading dictionary (first-time setup)…');
       const response = await requestUrl({ url: PdfViewerView.DICT_DOWNLOAD_URL });
       if (response.status === 200 && response.text) {
         // Save to plugin dir for future use
         await adapter.write(dictPath, response.text);
-        this.localDict = JSON.parse(response.text);
-        const count = Object.keys(this.localDict!).length;
+        this.localDict = JSON.parse(response.text) as LocalDict;
+        const count = Object.keys(this.localDict).length;
         console.debug(`PDF Tools — downloaded dictionary (${count} words)`);
         new Notice(`PDF Tools: Dictionary ready (${count.toLocaleString()} words)`);
         this.localDictLoading = false;
-        return this.localDict!;
+        return this.localDict;
       }
     } catch (err) {
       console.warn('PDF Tools — dictionary download failed:', err);
-      new Notice('PDF Tools: Dictionary download failed. Using online fallback.');
+      new Notice('PDF tools: Dictionary download failed. Using online fallback.');
     }
 
     this.localDictLoading = false;
     // Return empty dict — API fallback will handle lookups
-    const empty: Record<string, [string, string][]> = Object.create(null);
+    const empty = Object.create(null) as LocalDict;
     this.localDict = empty;
     return empty;
   }
@@ -1830,7 +1843,7 @@ export class PdfViewerView extends ItemView {
         return;
       }
 
-      const apiEntries = response.json;
+      const apiEntries = response.json as DictApiEntry[];
       if (!Array.isArray(apiEntries) || apiEntries.length === 0) {
         this.dictionaryResultsEl.createDiv({
           cls: 'pcai-dict-empty',
@@ -1881,7 +1894,7 @@ export class PdfViewerView extends ItemView {
   /**
    * Renders results from the free dictionary API.
    */
-  private renderApiDictResults(entries: { word?: string; phonetic?: string; meanings?: { partOfSpeech?: string; definitions?: { definition?: string; example?: string }[] }[] }[]): void {
+  private renderApiDictResults(entries: DictApiEntry[]): void {
     for (const entry of entries) {
       const wordDiv = this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-word-header' });
       wordDiv.createSpan({ cls: 'pcai-dict-word', text: entry.word ?? '' });

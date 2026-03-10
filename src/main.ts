@@ -161,13 +161,16 @@ export default class PdfCanvasAiPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const saved = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    const raw = await this.loadData() as Record<string, unknown> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, raw ?? {});
     // Deep-merge colorLabels so partial saves don't drop defaults
+    const savedLabels = raw != null && typeof raw === 'object' && 'colorLabels' in raw
+      ? raw.colorLabels as Record<string, string>
+      : {};
     this.settings.colorLabels = Object.assign(
       {},
       DEFAULT_SETTINGS.colorLabels,
-      saved?.colorLabels,
+      savedLabels,
     );
   }
 
@@ -200,7 +203,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
   private addRibbonIcons(): void {
     if (this.settings.enableAi) {
-      this.addRibbonIcon('bot', 'Open PDF Tools sidebar', () => {
+      this.addRibbonIcon('bot', 'Open PDF tools sidebar', () => {
         void this.activateAiSidebar().catch((e: unknown) => {
           console.error('PDF Tools: activateAiSidebar error', e);
         });
@@ -250,7 +253,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
       this.addCommand({
         id: 'ask-all-canvas-pdfs',
-        name: 'Ask Claude about all canvas PDFs',
+        name: 'Ask Claude about all canvas pdfs',
         callback: () => {
           void this.askAboutPdfs('all').catch((e: unknown) => console.error(e));
         },
@@ -316,7 +319,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
             new SpreadOptionsModal(this.app, (direction) => {
               void this.spreadPdfPages(file, node, direction).catch((e: unknown) => {
                 console.error('PDF Tools — spreadPdfPages error:', e);
-                new Notice('PDF Tools: Failed to spread PDF pages.');
+                new Notice('PDF tools: Failed to spread PDF pages.');
               });
             }).open();
           }),
@@ -328,7 +331,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .onClick(() => {
             void this.extractCurrentPage(file, node).catch((e: unknown) => {
               console.error('PDF Tools — extractCurrentPage error:', e);
-              new Notice('PDF Tools: Failed to extract page.');
+              new Notice('PDF tools: Failed to extract page.');
             });
           }),
       );
@@ -430,37 +433,37 @@ export default class PdfCanvasAiPlugin extends Plugin {
   async activateAiSidebar(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(AI_SIDEBAR_VIEW_TYPE);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = this.app.workspace.getRightLeaf(false);
     if (!leaf) return;
     await leaf.setViewState({ type: AI_SIDEBAR_VIEW_TYPE, active: true });
     const leaves = this.app.workspace.getLeavesOfType(AI_SIDEBAR_VIEW_TYPE);
-    if (leaves.length > 0) this.app.workspace.revealLeaf(leaves[0]);
+    if (leaves.length > 0) void this.app.workspace.revealLeaf(leaves[0]);
   }
 
   async activateAiChat(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = this.app.workspace.getLeaf('tab');
     await leaf.setViewState({ type: AI_CHAT_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    void this.app.workspace.revealLeaf(leaf);
   }
 
   async activatePdfViewer(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(PDF_VIEWER_VIEW_TYPE);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     // Open as a new tab (not a split — splits cause janky open-then-close behavior)
     const leaf = this.app.workspace.getLeaf('tab');
     await leaf.setViewState({ type: PDF_VIEWER_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    void this.app.workspace.revealLeaf(leaf);
   }
 
   async openFileInViewer(file: TFile, attempt = 0): Promise<void> {
@@ -468,7 +471,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const leaf = leaves[0];
     if (!leaf) {
       if (attempt >= 2) {
-        new Notice('PDF Tools: Could not open PDF viewer pane.');
+        new Notice('PDF tools: Could not open PDF viewer pane.');
         return;
       }
       await this.activatePdfViewer();
@@ -476,7 +479,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     }
     const view = leaf.view as PdfViewerView;
     await view.loadFile(file);
-    this.app.workspace.revealLeaf(leaf);
+    void this.app.workspace.revealLeaf(leaf);
   }
 
   getAiSidebarView(): AiSidebarView | null {
@@ -531,7 +534,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       return '[No PDF files found. Open a canvas with PDF nodes, or open a PDF in the viewer.]';
     }
 
-    const notice = new Notice(`PDF Tools: Extracting text from ${nodes.length} PDF(s)…`, 0);
+    const notice = new Notice(`PDF tools: Extracting text from ${nodes.length} PDF(s)…`, 0);
     try {
       const parts = await Promise.all(
         nodes.map(async ({ file }) => {
@@ -558,7 +561,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
     // Collect all node content
     if (canvas.nodes) {
-      const notice = new Notice('PDF Tools: Reading canvas content...', 0);
+      const notice = new Notice('PDF tools: Reading canvas content...', 0);
       try {
         for (const node of canvas.nodes.values()) {
           const nodeData: CanvasNodeData = typeof node.getData === 'function'
@@ -626,7 +629,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async openSelectedCanvasPdf(): Promise<void> {
     const nodes = getSelectedPdfNodes(this.app);
     if (nodes.length === 0) {
-      new Notice('PDF Tools: No PDF node selected on canvas.');
+      new Notice('PDF tools: No PDF node selected on canvas.');
       return;
     }
     await this.activatePdfViewer();
@@ -637,7 +640,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     await this.activateAiSidebar();
     const view = this.getAiSidebarView();
     if (view) view.setContextScope('pdf');
-    new Notice('PDF Tools: Context set. Type your question in the sidebar.');
+    new Notice('PDF tools: Context set. Type your question in the sidebar.');
   }
 
   /**
@@ -649,7 +652,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async spreadPdfPages(file: TFile, node: unknown, direction: SpreadDirection): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF Tools: No active canvas found.');
+      new Notice('PDF tools: No active canvas found.');
       return;
     }
 
@@ -659,8 +662,8 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const numPages = pdfDoc.numPages;
 
     if (numPages === 0) {
-      pdfDoc.destroy();
-      new Notice('PDF Tools: PDF has no pages.');
+      void pdfDoc.destroy();
+      new Notice('PDF tools: PDF has no pages.');
       return;
     }
 
@@ -668,7 +671,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const firstPage = await pdfDoc.getPage(1);
     const vp = firstPage.getViewport({ scale: 1 });
     const aspectRatio = vp.height / vp.width;
-    pdfDoc.destroy();
+    void pdfDoc.destroy();
 
     // Get the original node position
     const n = node as CanvasNode;
@@ -680,7 +683,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const pageHeight = Math.round(pageWidth * aspectRatio);
     const gap = 20;
 
-    const notice = new Notice(`PDF Tools: Spreading ${numPages} pages…`, 0);
+    const notice = new Notice(`PDF tools: Spreading ${numPages} pages…`, 0);
     try {
       // Remove the original node
       if (typeof canvas.removeNode === 'function') {
@@ -707,7 +710,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
             save: false,
           });
         } else {
-          new Notice('PDF Tools: Canvas API not available.');
+          new Notice('PDF tools: Canvas API not available.');
           return;
         }
       }
@@ -716,7 +719,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         canvas.requestSave();
       }
 
-      new Notice(`PDF Tools: Spread ${numPages} pages on canvas.`);
+      new Notice(`PDF tools: Spread ${numPages} pages on canvas.`);
     } finally {
       notice.hide();
     }
@@ -729,7 +732,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private async extractCurrentPage(file: TFile, node: unknown): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF Tools: No active canvas found.');
+      new Notice('PDF tools: No active canvas found.');
       return;
     }
 
@@ -749,7 +752,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const page = await pdfDoc.getPage(pageNum);
     const vp = page.getViewport({ scale: 1 });
     const aspectRatio = vp.height / vp.width;
-    pdfDoc.destroy();
+    void pdfDoc.destroy();
 
     const pageWidth = 400;
     const pageHeight = Math.round(pageWidth * aspectRatio);
@@ -765,7 +768,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         focus: false,
       });
     } else {
-      new Notice('PDF Tools: Canvas API not available.');
+      new Notice('PDF tools: Canvas API not available.');
       return;
     }
 
@@ -773,18 +776,18 @@ export default class PdfCanvasAiPlugin extends Plugin {
       canvas.requestSave();
     }
 
-    new Notice(`PDF Tools: Extracted page ${pageNum}.`);
+    new Notice(`PDF tools: Extracted page ${pageNum}.`);
   }
 
   addToCanvas(file: TFile): void {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
-      new Notice('PDF Tools: No active canvas. Open a canvas first.');
+      new Notice('PDF tools: No active canvas. Open a canvas first.');
       return;
     }
 
     if (typeof canvas.createFileNode !== 'function' || typeof canvas.createTextNode !== 'function') {
-      new Notice('PDF Tools: Canvas API not available.');
+      new Notice('PDF tools: Canvas API not available.');
       return;
     }
 
@@ -839,7 +842,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       canvas.requestSave();
     }
 
-    new Notice(`PDF Tools: Added "${file.basename}" to canvas.`);
+    new Notice(`PDF tools: Added "${file.basename}" to canvas.`);
   }
 
   private async openFileInViewerAndAsk(file: TFile): Promise<void> {
@@ -896,7 +899,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     // Cap results
     const filesToInclude = matchingFiles.slice(0, 10);
 
-    const notice = new Notice(`PDF Tools: Reading ${filesToInclude.length} vault files\u2026`, 0);
+    const notice = new Notice(`PDF tools: Reading ${filesToInclude.length} vault files…`, 0);
     try {
       for (const file of filesToInclude) {
         try {
