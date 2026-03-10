@@ -104,7 +104,7 @@ export class AiSidebarView extends ItemView {
   private startContextTracking(): void {
     this.plugin.registerEvent(
       this.app.workspace.on('active-leaf-change', (leaf) => {
-        if (leaf && leaf.view !== this) {
+        if (leaf && (leaf.view as unknown) !== this) {
           this.onActiveLeafChange(leaf);
         }
       }),
@@ -141,8 +141,7 @@ export class AiSidebarView extends ItemView {
 
     // Check if it's our PDF viewer
     if (viewType === 'pdf-tools-viewer') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfView = view as any;
+      const pdfView = view as ItemView & { getCurrentFile?: () => unknown };
       if (typeof pdfView.getCurrentFile === 'function') {
         const file = pdfView.getCurrentFile();
         if (file instanceof TFile) {
@@ -154,8 +153,7 @@ export class AiSidebarView extends ItemView {
     }
 
     // Check if it's Obsidian's native PDF view, markdown view, or any file view
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const file = (view as any).file;
+    const file = (view as ItemView & { file?: unknown }).file;
     if (file instanceof TFile) {
       this.currentFile = file;
       this.updateContextLabel();
@@ -179,8 +177,7 @@ export class AiSidebarView extends ItemView {
     if (canvas) {
       const canvasLeaves = this.app.workspace.getLeavesOfType('canvas');
       for (const leaf of canvasLeaves) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const v = leaf.view as any;
+        const v = leaf.view as ItemView & { canvas?: unknown; file?: { name?: string } };
         if (v?.canvas === canvas && v?.file?.name) {
           if (this.currentFile) {
             return `${v.file.name} \u203A ${this.currentFile.basename}`;
@@ -279,16 +276,16 @@ export class AiSidebarView extends ItemView {
   // ─── Chat list UI ─────────────────────────────────────────────────────────
 
   private toggleChatList(): void {
-    if (this.chatListEl.style.display === 'none') {
+    if (this.chatListEl.hasClass('pcai-hidden')) {
       this.renderChatList();
-      this.chatListEl.style.display = 'block';
+      this.chatListEl.removeClass('pcai-hidden');
     } else {
       this.hideChatList();
     }
   }
 
   private hideChatList(): void {
-    this.chatListEl.style.display = 'none';
+    this.chatListEl.addClass('pcai-hidden');
   }
 
   private renderChatList(): void {
@@ -352,19 +349,19 @@ export class AiSidebarView extends ItemView {
       cls: 'pcai-icon-btn',
       attr: { title: 'New conversation' },
     });
-    newBtn.innerHTML = '&#x2795;';
+    newBtn.setText('\u2795');
     newBtn.addEventListener('click', () => this.newConversation());
 
     const historyBtn = btnGroup.createEl('button', {
       cls: 'pcai-icon-btn',
       attr: { title: 'Chat history' },
     });
-    historyBtn.innerHTML = '&#x1F4AC;';
+    historyBtn.setText('\uD83D\uDCAC');
     historyBtn.addEventListener('click', () => this.toggleChatList());
 
     // ── Chat list (hidden by default) ──
     this.chatListEl = root.createDiv('pcai-chat-list');
-    this.chatListEl.style.display = 'none';
+    this.chatListEl.addClass('pcai-hidden');
 
     // ── Context indicator (auto-detected) ──
     const ctxBar = root.createDiv('pcai-context-bar');
@@ -377,23 +374,23 @@ export class AiSidebarView extends ItemView {
 
     // ── Attachments bar (shown when files are @-mentioned) ──
     this.attachmentsEl = root.createDiv('pcai-attachments');
-    this.attachmentsEl.style.display = 'none';
+    this.attachmentsEl.addClass('pcai-hidden');
 
     // ── Input area ──
     const inputArea = root.createDiv('pcai-input-area');
 
     // @ mention dropdown (hidden by default)
     this.mentionDropdownEl = inputArea.createDiv('pcai-mention-dropdown');
-    this.mentionDropdownEl.style.display = 'none';
+    this.mentionDropdownEl.addClass('pcai-hidden');
 
     this.inputEl = inputArea.createEl('textarea', {
       cls: 'pcai-input',
       attr: { placeholder: 'Ask about your documents\u2026 Use @ to attach files', rows: '3' },
-    }) as HTMLTextAreaElement;
+    });
 
     this.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
       // Handle mention dropdown navigation
-      if (this.mentionDropdownEl.style.display !== 'none') {
+      if (!this.mentionDropdownEl.hasClass('pcai-hidden')) {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           this.navigateMentionDropdown(e.key === 'ArrowDown' ? 1 : -1);
@@ -416,7 +413,7 @@ export class AiSidebarView extends ItemView {
 
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        this.handleSend();
+        void this.handleSend();
       }
     });
 
@@ -427,8 +424,8 @@ export class AiSidebarView extends ItemView {
     this.sendBtn = btnRow.createEl('button', {
       cls: 'pcai-send-btn mod-cta',
       text: 'Send',
-    }) as HTMLButtonElement;
-    this.sendBtn.addEventListener('click', () => this.handleSend());
+    });
+    this.sendBtn.addEventListener('click', () => { void this.handleSend(); });
   }
 
   // ─── @ mention system ──────────────────────────────────────────────────────
@@ -476,7 +473,7 @@ export class AiSidebarView extends ItemView {
     this.mentionDropdownEl.empty();
 
     if (matches.length === 0) {
-      this.mentionDropdownEl.style.display = 'none';
+      this.mentionDropdownEl.addClass('pcai-hidden');
       return;
     }
 
@@ -503,11 +500,11 @@ export class AiSidebarView extends ItemView {
       });
     }
 
-    this.mentionDropdownEl.style.display = 'block';
+    this.mentionDropdownEl.removeClass('pcai-hidden');
   }
 
   private hideMentionDropdown(): void {
-    this.mentionDropdownEl.style.display = 'none';
+    this.mentionDropdownEl.addClass('pcai-hidden');
     this.mentionStart = -1;
     this.mentionQuery = '';
   }
@@ -543,11 +540,11 @@ export class AiSidebarView extends ItemView {
     this.attachmentsEl.empty();
 
     if (this.attachedFiles.length === 0) {
-      this.attachmentsEl.style.display = 'none';
+      this.attachmentsEl.addClass('pcai-hidden');
       return;
     }
 
-    this.attachmentsEl.style.display = 'flex';
+    this.attachmentsEl.removeClass('pcai-hidden');
 
     for (const af of this.attachedFiles) {
       const chip = this.attachmentsEl.createDiv('pcai-attach-chip');
@@ -709,7 +706,7 @@ export class AiSidebarView extends ItemView {
         this.setStreaming(false);
 
         // Check if compaction is needed (background, non-blocking)
-        this.maybeCompact(conv).catch((e) => {
+        void this.maybeCompact(conv).catch((e) => {
           console.error('PDF Tools: compaction error', e);
         });
       },
@@ -772,7 +769,7 @@ export class AiSidebarView extends ItemView {
     // Collect the summary via streaming (we just accumulate, no UI)
     let summary = '';
     await new Promise<void>((resolve) => {
-      this.plugin.aiService.streamChat(
+      void this.plugin.aiService.streamChat(
         summaryPrompt,
         (delta) => {
           summary += delta;

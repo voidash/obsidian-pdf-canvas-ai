@@ -91,13 +91,11 @@ export const VAULT_TOOLS = [
 export class VaultToolExecutor {
   private app: App;
   private pdfService: PdfService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getCanvas: () => any;
 
   constructor(
     app: App,
     pdfService: PdfService,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     getCanvas: () => any,
   ) {
     this.app = app;

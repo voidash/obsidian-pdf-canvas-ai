@@ -7,7 +7,7 @@ export interface CanvasPdfNode {
   node: unknown;
 }
 
-function getActiveCanvas(app: App): unknown | null {
+function getActiveCanvas(app: App): unknown {
   // First try the active view
   const active = app.workspace.getActiveViewOfType(ItemView) as (ItemView & { canvas?: unknown }) | null;
   if (active && active.getViewType() === 'canvas' && active.canvas) {

@@ -21,9 +21,7 @@ export class CanvasInlinePdf {
   private containerEl: HTMLElement;
   private file: TFile;
   private plugin: PdfCanvasAiPlugin;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private canvas: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private node: any;
 
   private pdfDoc: PDFDocumentProxy | null = null;
@@ -57,9 +55,7 @@ export class CanvasInlinePdf {
     containerEl: HTMLElement,
     file: TFile,
     plugin: PdfCanvasAiPlugin,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     canvas: any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     node: any,
     singlePageNum?: number,
   ) {
@@ -104,7 +100,7 @@ export class CanvasInlinePdf {
       if (this.destroyed) return;
       this.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
       if (this.destroyed) {
-        this.pdfDoc.destroy();
+        void this.pdfDoc.destroy();
         this.pdfDoc = null;
         return;
       }
@@ -178,8 +174,7 @@ export class CanvasInlinePdf {
         cls: 'pcai-page-wrapper pcai-page-placeholder',
         attr: { 'data-page': String(i) },
       });
-      wrapper.style.width = `${vp.width}px`;
-      wrapper.style.height = `${vp.height}px`;
+      wrapper.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
 
       this.pageObserver.observe(wrapper);
     }
@@ -207,8 +202,7 @@ export class CanvasInlinePdf {
     }) as HTMLCanvasElement;
     canvas.width = Math.round(vp.width * dpr);
     canvas.height = Math.round(vp.height * dpr);
-    canvas.style.width = `${vp.width}px`;
-    canvas.style.height = `${vp.height}px`;
+    canvas.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     if (dpr !== 1) ctx.scale(dpr, dpr);
@@ -228,9 +222,8 @@ export class CanvasInlinePdf {
 
     // Text layer
     const textLayerEl = wrapper.createDiv({ cls: 'textLayer' });
-    textLayerEl.style.width = `${vp.width}px`;
-    textLayerEl.style.height = `${vp.height}px`;
-    textLayerEl.style.setProperty('--scale-factor', String(this.currentScale));
+    textLayerEl.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
+    textLayerEl.setCssProps({ '--scale-factor': String(this.currentScale) });
 
     const textContent = await page.getTextContent();
     const textRenderTask = pdfjsLib.renderTextLayer({
@@ -270,7 +263,7 @@ export class CanvasInlinePdf {
       const containerWidth = this.containerEl.clientWidth - (this.singlePage ? 0 : 16);
       if (containerWidth <= 0) return;
 
-      this.pdfDoc
+      void this.pdfDoc
         .getPage(1)
         .then((page) => {
           const naturalWidth = page.getViewport({ scale: 1 }).width;
@@ -286,8 +279,7 @@ export class CanvasInlinePdf {
   // ─── Selection menu ───────────────────────────────────────────────────────
 
   private buildSelectionMenu(): void {
-    this.selectionMenuEl = this.containerEl.createDiv('pcai-sel-menu');
-    this.selectionMenuEl.style.display = 'none';
+    this.selectionMenuEl = this.containerEl.createDiv('pcai-sel-menu pcai-hidden');
 
     // Highlight color dots
     const colors = this.selectionMenuEl.createDiv('pcai-sel-colors');
@@ -296,7 +288,7 @@ export class CanvasInlinePdf {
         cls: 'pcai-sel-dot',
         attr: { title: `Highlight ${color}` },
       });
-      dot.style.setProperty('--dot-color', COLOR_HEX[color]);
+      dot.setCssProps({ '--dot-color': COLOR_HEX[color] });
       dot.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -312,7 +304,7 @@ export class CanvasInlinePdf {
     askBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.askAboutSelection();
+      void this.askAboutSelection();
     });
 
     const copyBtn = actions.createEl('button', { cls: 'pcai-sel-btn', text: 'Copy' });
@@ -367,7 +359,7 @@ export class CanvasInlinePdf {
     }
 
     const range = selection.getRangeAt(0);
-    const startNode = range.startContainer as Node;
+    const startNode = range.startContainer;
     const pageWrapper = (
       startNode.nodeType === Node.TEXT_NODE
         ? startNode.parentElement
@@ -408,14 +400,13 @@ export class CanvasInlinePdf {
     );
     const menuTop = lastRect.bottom - containerRect.top + 6;
 
-    this.selectionMenuEl.style.left = `${Math.max(0, menuLeft)}px`;
-    this.selectionMenuEl.style.top = `${menuTop}px`;
-    this.selectionMenuEl.style.display = 'flex';
+    this.selectionMenuEl.setCssStyles({ left: `${Math.max(0, menuLeft)}px`, top: `${menuTop}px` });
+    this.selectionMenuEl.removeClass('pcai-hidden');
   }
 
   private hideSelectionMenu(): void {
     if (this.selectionMenuEl) {
-      this.selectionMenuEl.style.display = 'none';
+      this.selectionMenuEl.addClass('pcai-hidden');
     }
   }
 
@@ -471,11 +462,13 @@ export class CanvasInlinePdf {
 
     for (const rect of h.rects) {
       const div = layer.createDiv({ cls: `pcai-highlight pcai-hl-${h.color}` });
-      div.style.left = `${rect.x * 100}%`;
-      div.style.top = `${rect.y * 100}%`;
-      div.style.width = `${rect.width * 100}%`;
-      div.style.height = `${rect.height * 100}%`;
-      div.style.backgroundColor = COLOR_HEX[h.color];
+      div.setCssStyles({
+        left: `${rect.x * 100}%`,
+        top: `${rect.y * 100}%`,
+        width: `${rect.width * 100}%`,
+        height: `${rect.height * 100}%`,
+        backgroundColor: COLOR_HEX[h.color],
+      });
       div.title = h.text;
       div.dataset.highlightId = h.id;
 
@@ -493,7 +486,7 @@ export class CanvasInlinePdf {
       item
         .setTitle('Ask AI about this highlight')
         .setIcon('bot')
-        .onClick(() => this.askAboutHighlight(h)),
+        .onClick(() => void this.askAboutHighlight(h)),
     );
     menu.addItem((item) =>
       item
@@ -620,7 +613,7 @@ export class CanvasInlinePdf {
     }
 
     this.blockerEl.title = 'Double-click to interact with PDF';
-    this.blockerEl.style.cursor = 'pointer';
+    this.blockerEl.addClass('pcai-cursor-pointer');
 
     this.blockerDblclickHandler = (e: MouseEvent) => {
       e.preventDefault();
@@ -633,7 +626,7 @@ export class CanvasInlinePdf {
   private enterInteractiveMode(): void {
     if (this.interactive || this.destroyed) return;
     this.interactive = true;
-    if (this.blockerEl) this.blockerEl.style.pointerEvents = 'none';
+    if (this.blockerEl) this.blockerEl.addClass('pcai-no-pointer-events');
     this.containerEl.classList.add('pcai-interactive');
 
     // Click outside the canvas node to exit
@@ -660,7 +653,7 @@ export class CanvasInlinePdf {
   private exitInteractiveMode(): void {
     if (!this.interactive) return;
     this.interactive = false;
-    if (this.blockerEl) this.blockerEl.style.pointerEvents = '';
+    if (this.blockerEl) this.blockerEl.removeClass('pcai-no-pointer-events');
     this.containerEl.classList.remove('pcai-interactive');
 
     if (this.exitInteractiveHandler) {
@@ -718,7 +711,7 @@ export class CanvasInlinePdf {
       document.removeEventListener('mousedown', this.mousedownHandler);
       this.mousedownHandler = null;
     }
-    this.pdfDoc?.destroy();
+    void this.pdfDoc?.destroy();
     this.pdfDoc = null;
   }
 }

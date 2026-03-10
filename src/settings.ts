@@ -186,7 +186,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'PDF Tools' });
+    new Setting(containerEl).setName('PDF Tools').setHeading();
 
     // ── AI toggle ──
     new Setting(containerEl)
@@ -208,7 +208,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
 
     // ── AI settings (only shown when AI is enabled) ──
     if (this.plugin.settings.enableAi) {
-      containerEl.createEl('h3', { text: 'AI Configuration' });
+      new Setting(containerEl).setName('AI Configuration').setHeading();
 
       // ── Provider selector ──
       new Setting(containerEl)
@@ -342,12 +342,12 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
               await this.plugin.saveSettings();
             });
           text.inputEl.rows = 5;
-          text.inputEl.style.width = '100%';
+          text.inputEl.addClass('pcai-settings-textarea-wide');
         });
     }
 
     // ── PDF Reader settings ──
-    containerEl.createEl('h3', { text: 'PDF Reader' });
+    new Setting(containerEl).setName('PDF Reader').setHeading();
 
     new Setting(containerEl)
       .setName('Default zoom level')
@@ -420,11 +420,10 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
       });
 
     // ── Highlight color labels ──
-    containerEl.createEl('h3', { text: 'Highlight Color Labels' });
-    containerEl.createEl('p', {
-      text: 'Assign a meaning to each highlight color. These labels appear in the annotations sidebar and can be used as filters.',
-      cls: 'setting-item-description',
-    });
+    new Setting(containerEl)
+      .setName('Highlight Color Labels')
+      .setDesc('Assign a meaning to each highlight color. These labels appear in the annotations sidebar and can be used as filters.')
+      .setHeading();
 
     const labels = this.plugin.settings.colorLabels ?? { ...DEFAULT_COLOR_LABELS };
     for (const color of HIGHLIGHT_COLORS) {
@@ -442,7 +441,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
       // Add a color swatch before the setting name
       const nameEl = setting.nameEl;
       const swatch = createSpan({ cls: 'pcai-settings-color-swatch' });
-      swatch.style.backgroundColor = COLOR_HEX[color];
+      swatch.setCssProps({ '--swatch-color': COLOR_HEX[color] });
       nameEl.prepend(swatch);
     }
   }

@@ -100,18 +100,19 @@ export default class PdfCanvasAiPlugin extends Plugin {
       });
     }
 
-    console.log('PDF Tools: loaded');
+    console.debug('PDF Tools: loaded');
   }
 
-  async onunload(): Promise<void> {
+  onunload(): void {
     this.canvasInjector.stop();
     this.annotationStore.destroy();
     if (this.chatStore) {
-      await this.chatStore.flush();
-      this.chatStore.destroy();
+      void this.chatStore.flush().then(() => {
+        this.chatStore.destroy();
+      });
     }
     this.proxyManager?.stop();
-    console.log('PDF Tools: unloaded');
+    console.debug('PDF Tools: unloaded');
   }
 
   async loadSettings(): Promise<void> {
@@ -234,7 +235,6 @@ export default class PdfCanvasAiPlugin extends Plugin {
     // `canvas:node-menu` fires when the user right-clicks a canvas node.
     // It is undocumented but has been stable across community plugins since v1.4.
     // Cast workspace to any — the event name is not in Obsidian's public types.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ws = this.app.workspace as any;
     const ref: EventRef = ws.on('canvas:node-menu', (menu: Menu, node: unknown) => {
       const file = this.resolveCanvasNodeFile(node);
@@ -339,7 +339,6 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private registerPdfIntercept(): void {
     // Override the extension → view-type mapping so all PDF opens use our viewer.
     // viewRegistry is internal but widely used by community plugins (pdf++, excalidraw, etc.)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const registry = (this.app as any).viewRegistry;
     if (!registry?.typeByExtension) {
       console.warn('PDF Tools: viewRegistry not found, PDF intercept unavailable');
@@ -438,17 +437,14 @@ export default class PdfCanvasAiPlugin extends Plugin {
   }
 
   /** Returns the canvas object from any open canvas leaf, or null. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getActiveCanvas(): any {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const active = this.app.workspace.getActiveViewOfType(ItemView) as any;
     if (active?.getViewType?.() === 'canvas' && active.canvas) {
       return active.canvas;
     }
     const canvasLeaves = this.app.workspace.getLeavesOfType('canvas');
     for (const leaf of canvasLeaves) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const view = leaf.view as any;
+        const view = leaf.view as any;
       if (view?.canvas) return view.canvas;
     }
     return null;
@@ -600,7 +596,6 @@ export default class PdfCanvasAiPlugin extends Plugin {
    * that our injector detects and replaces with a pdfjs page renderer.
    * This avoids file nodes (which trigger the PDF viewer intercept).
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async spreadPdfPages(file: TFile, node: any, direction: SpreadDirection): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
@@ -680,7 +675,6 @@ export default class PdfCanvasAiPlugin extends Plugin {
    * Extract the currently visible page of a PDF node as a standalone
    * single-page spread node, positioned to the right of the source.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async extractCurrentPage(file: TFile, node: any): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
@@ -730,7 +724,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
     new Notice(`PDF Tools: Extracted page ${pageNum}.`);
   }
 
-  async addToCanvas(file: TFile): Promise<void> {
+  addToCanvas(file: TFile): void {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
       new Notice('PDF Tools: No active canvas. Open a canvas first.');
@@ -743,7 +737,6 @@ export default class PdfCanvasAiPlugin extends Plugin {
     }
 
     // Find a sensible position — center of the current viewport or (0,0)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const vp = typeof canvas.getViewportCenter === 'function' ? canvas.getViewportCenter() : null;
     const cx = vp?.x ?? 0;
     const cy = vp?.y ?? 0;

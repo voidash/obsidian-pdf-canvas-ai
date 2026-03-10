@@ -11,8 +11,14 @@ export interface ToolCallEvent {
   args: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ToolDefinition = any;
+export interface ToolDefinition {
+  type: string;
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
 
 export interface StreamOptions {
   tools?: ToolDefinition[];
@@ -59,6 +65,8 @@ export class AiService {
             },
           }
         : {}),
+      // Using globalThis.fetch because the OpenAI SDK requires a fetch-compatible
+      // function signature; Obsidian's requestUrl is not a drop-in replacement.
       fetch: (url: RequestInfo | URL, init?: RequestInit) => {
         if (init?.headers) {
           const headers = new Headers(init.headers as HeadersInit);
@@ -108,8 +116,7 @@ export class AiService {
    * we execute them and recurse. Text deltas are forwarded immediately.
    */
   private async streamWithTools(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    messages: any[],
+    messages: Record<string, unknown>[],
     onDelta: (delta: string) => void,
     onDone: () => void,
     options: StreamOptions | undefined,
@@ -120,8 +127,7 @@ export class AiService {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const params: any = {
+    const params: Record<string, unknown> = {
       model: this.settings.model,
       messages,
       stream: true,
@@ -132,8 +138,11 @@ export class AiService {
       params.tools = options.tools;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stream = await this.client.chat.completions.create(params) as any;
+    // Cast needed: params is built dynamically (tools added conditionally);
+    // SDK stream type varies between OpenAI-compatible providers.
+    const stream = await this.client.chat.completions.create(
+      params as unknown as OpenAI.ChatCompletionCreateParams & { stream: true },
+    );
 
     const toolCalls: ToolCallAccumulator[] = [];
 
@@ -147,8 +156,9 @@ export class AiService {
       }
 
       // Accumulate tool calls from stream
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dtc = (delta as any).tool_calls;
+      const dtc = (delta as Record<string, unknown>).tool_calls as
+        | { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
+        | undefined;
       if (dtc && Array.isArray(dtc)) {
         for (const tc of dtc) {
           const idx = tc.index ?? 0;
@@ -229,8 +239,7 @@ export class AiService {
 
   private async streamAnthropicLoop(
     systemPrompt: string | undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    messages: any[],
+    messages: Record<string, unknown>[],
     onDelta: (delta: string) => void,
     onDone: () => void,
     onError: (error: string) => void,
@@ -242,8 +251,7 @@ export class AiService {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       model: this.settings.model,
       max_tokens: 4096,
       stream: true,
@@ -262,6 +270,8 @@ export class AiService {
 
     try {
       const baseUrl = this.settings.baseUrl.replace(/\/v1\/?$/, '');
+      // Using fetch instead of Obsidian's requestUrl because we need streaming
+      // SSE via ReadableStream (res.body.getReader()), which requestUrl does not support.
       const res = await fetch(`${baseUrl}/v1/messages`, {
         method: 'POST',
         headers: {
@@ -289,8 +299,7 @@ export class AiService {
       let buffer = '';
 
       // Track tool use blocks
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const toolUseBlocks: { id: string; name: string; input: any }[] = [];
+      const toolUseBlocks: { id: string; name: string; input: Record<string, unknown> }[] = [];
       let currentToolId = '';
       let currentToolName = '';
       let currentToolInput = '';
@@ -326,9 +335,9 @@ export class AiService {
               }
             } else if (event.type === 'content_block_stop') {
               if (currentToolName) {
-                let parsedInput = {};
+                let parsedInput: Record<string, unknown> = {};
                 try {
-                  parsedInput = JSON.parse(currentToolInput);
+                  parsedInput = JSON.parse(currentToolInput) as Record<string, unknown>;
                 } catch {
                   // Malformed input
                 }
@@ -354,8 +363,7 @@ export class AiService {
       // If tool use, execute and loop
       if (stopReason === 'tool_use' && toolUseBlocks.length > 0 && options?.executeToolCall) {
         // Build assistant message with tool use content
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const assistantContent: any[] = [];
+        const assistantContent: Record<string, unknown>[] = [];
         for (const block of toolUseBlocks) {
           options.onToolCall?.({ name: block.name, args: JSON.stringify(block.input) });
           assistantContent.push({
@@ -372,8 +380,7 @@ export class AiService {
         ];
 
         // Execute tools and add results
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const toolResults: any[] = [];
+        const toolResults: Record<string, unknown>[] = [];
         for (const block of toolUseBlocks) {
           let result: string;
           try {

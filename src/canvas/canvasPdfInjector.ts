@@ -51,7 +51,6 @@ export class CanvasPdfInjector {
         this.observers.set(leaf, mo);
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const canvas = (leaf.view as any)?.canvas;
       if (!canvas?.nodes) continue;
 
@@ -88,7 +87,6 @@ export class CanvasPdfInjector {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private tryInjectSpreadPage(el: HTMLElement, node: any, canvas: any): void {
     let text: string | undefined;
     try {
@@ -121,7 +119,6 @@ export class CanvasPdfInjector {
   }
 
   /** Look up the renderer for a given canvas node, if one exists. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getRendererForNode(node: any): CanvasInlinePdf | null {
     const el: HTMLElement | undefined = node?.contentEl;
     if (!el) return null;

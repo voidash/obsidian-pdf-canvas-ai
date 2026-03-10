@@ -31,6 +31,8 @@ export class ProxyManager {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 1500);
     try {
+      // Using fetch because this checks a local subprocess health endpoint;
+      // Obsidian's requestUrl lacks AbortController signal support.
       const res = await fetch(this.baseUrl, { signal: ctrl.signal });
       // Any HTTP response (even 404/401) means the server is up
       return res.status < 500;
@@ -61,11 +63,11 @@ export class ProxyManager {
     });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      console.log('[proxy]', d.toString().trimEnd());
+      console.debug('[proxy]', d.toString().trimEnd());
     });
 
     this.process.stderr?.on('data', (d: Buffer) => {
-      console.log('[proxy stderr]', d.toString().trimEnd());
+      console.debug('[proxy stderr]', d.toString().trimEnd());
     });
 
     this.process.on('error', (err) => {
@@ -79,7 +81,7 @@ export class ProxyManager {
     });
 
     this.process.on('exit', (code) => {
-      console.log(`PDF Tools: proxy exited (code ${code})`);
+      console.debug(`PDF Tools: proxy exited (code ${code})`);
       this.process = null;
     });
 

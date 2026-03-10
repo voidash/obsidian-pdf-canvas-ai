@@ -118,8 +118,7 @@ export class PdfViewerView extends ItemView {
 
   // State persistence — allows Obsidian to open PDFs via file explorer, links, etc.
   getState(): Record<string, unknown> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const state = super.getState() as any;
+    const state = super.getState() as Record<string, unknown>;
     if (this.currentFile) {
       state.file = this.currentFile.path;
     }
@@ -127,8 +126,7 @@ export class PdfViewerView extends ItemView {
   }
 
   async setState(state: unknown, result: { history: boolean }): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const s = state as any;
+    const s = state as Record<string, unknown>;
     if (s?.file && typeof s.file === 'string') {
       const file = this.app.vault.getAbstractFileByPath(s.file);
       if (file instanceof TFile && file.extension === 'pdf') {
@@ -170,7 +168,7 @@ export class PdfViewerView extends ItemView {
     if (this.annoSearchInputEl) {
       this.annoSearchInputEl.value = '';
       const clearBtn = this.annoSearchInputEl.parentElement?.querySelector('.pcai-anno-search-clear') as HTMLElement | null;
-      if (clearBtn) clearBtn.style.display = 'none';
+      if (clearBtn) clearBtn.addClass('pcai-hidden');
     }
 
     this.renderedPages.clear();
@@ -180,7 +178,7 @@ export class PdfViewerView extends ItemView {
     this.pagesEl.empty();
     this.filenameLabelEl.setText(file.name);
     this.metadataEl.empty();
-    this.metadataEl.style.display = 'none';
+    this.metadataEl.addClass('pcai-hidden');
     (this.leaf as unknown as { updateHeader?(): void }).updateHeader?.();
 
     // Highlight the active file in the library list
@@ -213,15 +211,14 @@ export class PdfViewerView extends ItemView {
     try {
       const metaResult = await this.pdfDoc.getMetadata();
       if (gen !== this.loadGeneration) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const info = metaResult?.info as Record<string, any> | undefined;
+      const info = metaResult?.info as Record<string, unknown> | undefined;
       if (info) {
         this.currentMetadata = {
-          title: info.Title || undefined,
-          author: info.Author || undefined,
-          subject: info.Subject || undefined,
-          keywords: info.Keywords || undefined,
-          creationDate: info.CreationDate || undefined,
+          title: (info.Title as string) || undefined,
+          author: (info.Author as string) || undefined,
+          subject: (info.Subject as string) || undefined,
+          keywords: (info.Keywords as string) || undefined,
+          creationDate: (info.CreationDate as string) || undefined,
         };
         this.updateMetadataDisplay();
       }
@@ -273,7 +270,7 @@ export class PdfViewerView extends ItemView {
     this.librarySearchEl = filesContent.createEl('input', {
       cls: 'pcai-library-search',
       attr: { type: 'text', placeholder: 'Filter\u2026' },
-    }) as HTMLInputElement;
+    });
     this.librarySearchEl.addEventListener('input', () => this.refreshFileList());
 
     this.fileListEl = filesContent.createDiv('pcai-file-list');
@@ -294,11 +291,11 @@ export class PdfViewerView extends ItemView {
     const dictInput = dictContent.createEl('input', {
       cls: 'pcai-dict-search',
       attr: { type: 'text', placeholder: 'Look up a word\u2026' },
-    }) as HTMLInputElement;
+    });
     dictInput.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         const word = dictInput.value.trim();
-        if (word) this.lookupWord(word);
+        if (word) void this.lookupWord(word);
       }
     });
     this.dictionaryResultsEl = dictContent.createDiv('pcai-dict-results');
@@ -316,7 +313,7 @@ export class PdfViewerView extends ItemView {
       attr: { 'aria-label': 'Export annotations to Markdown' },
     });
     setIcon(exportBtn, 'download');
-    exportBtn.addEventListener('click', () => this.exportAnnotations());
+    exportBtn.addEventListener('click', () => void this.exportAnnotations());
 
     if (this.plugin.settings.enableAi) {
       const summarizeBtn = annoActionsRow.createEl('button', {
@@ -324,7 +321,7 @@ export class PdfViewerView extends ItemView {
         attr: { 'aria-label': 'Summarize annotations with AI' },
       });
       setIcon(summarizeBtn, 'sparkles');
-      summarizeBtn.addEventListener('click', () => this.summarizeAnnotations());
+      summarizeBtn.addEventListener('click', () => void this.summarizeAnnotations());
     }
 
     // Cross-PDF annotation search
@@ -332,7 +329,7 @@ export class PdfViewerView extends ItemView {
     this.annoSearchInputEl = annoSearchRow.createEl('input', {
       cls: 'pcai-anno-search-input',
       attr: { type: 'text', placeholder: 'Search all annotations\u2026' },
-    }) as HTMLInputElement;
+    });
     this.annoSearchInputEl.addEventListener('input', () => this.onAnnoSearchInput());
 
     const annoSearchClearBtn = annoSearchRow.createEl('button', {
@@ -340,10 +337,10 @@ export class PdfViewerView extends ItemView {
       attr: { 'aria-label': 'Clear search' },
     });
     setIcon(annoSearchClearBtn, 'x');
-    annoSearchClearBtn.style.display = 'none';
+    annoSearchClearBtn.addClass('pcai-hidden');
     annoSearchClearBtn.addEventListener('click', () => {
       this.annoSearchInputEl.value = '';
-      annoSearchClearBtn.style.display = 'none';
+      annoSearchClearBtn.addClass('pcai-hidden');
       this.annoSearchActive = false;
       this.refreshAnnotations();
     });
@@ -403,7 +400,7 @@ export class PdfViewerView extends ItemView {
         attr: { title: labels[color] ?? color },
       });
       const dot = btn.createSpan({ cls: 'pcai-color-filter-dot' });
-      dot.style.backgroundColor = COLOR_HEX[color];
+      dot.setCssStyles({ backgroundColor: COLOR_HEX[color] });
       btn.addEventListener('click', () => {
         this.activeColorFilter = this.activeColorFilter === color ? null : color;
         this.buildColorFilterRow();
@@ -457,7 +454,7 @@ export class PdfViewerView extends ItemView {
       }
 
       row.addEventListener('click', () => {
-        this.loadFile(file).catch((e: unknown) =>
+        void this.loadFile(file).catch((e: unknown) =>
           console.error('PDF Tools \u2014 loadFile error:', e),
         );
       });
@@ -468,7 +465,7 @@ export class PdfViewerView extends ItemView {
         const pct = Math.min(100, Math.round((progress.lastPage / progress.totalPages) * 100));
         const progressBar = item.createDiv({ cls: 'pcai-file-progress' });
         const fill = progressBar.createDiv({ cls: 'pcai-file-progress-fill' });
-        fill.style.width = `${pct}%`;
+        fill.setCssStyles({ width: `${pct}%` });
         progressBar.title = `${pct}% read (page ${progress.lastPage}/${progress.totalPages})`;
       }
 
@@ -554,7 +551,7 @@ export class PdfViewerView extends ItemView {
         // Color dot + label + text
         const row = card.createDiv('pcai-anno-row');
         const dot = row.createSpan('pcai-anno-dot');
-        dot.style.setProperty('--dot-color', COLOR_HEX[h.color]);
+        dot.setCssProps({ '--dot-color': COLOR_HEX[h.color] });
         const colorLabel = this.plugin.settings.colorLabels?.[h.color] ?? DEFAULT_COLOR_LABELS[h.color];
         dot.title = colorLabel;
 
@@ -583,7 +580,7 @@ export class PdfViewerView extends ItemView {
             cls: 'pcai-anno-action',
             text: 'Ask AI',
           });
-          askBtn.addEventListener('click', () => this.askAboutHighlight(h));
+          askBtn.addEventListener('click', () => void this.askAboutHighlight(h));
         }
 
         const noteBtn = actions.createEl('button', {
@@ -615,7 +612,7 @@ export class PdfViewerView extends ItemView {
     const textarea = dialog.createEl('textarea', {
       cls: 'pcai-note-textarea',
       attr: { rows: '4', placeholder: 'Add a note to this annotation\u2026' },
-    }) as HTMLTextAreaElement;
+    });
     textarea.value = h.note ?? '';
 
     const btnRow = dialog.createDiv('pcai-note-btn-row');
@@ -671,7 +668,7 @@ export class PdfViewerView extends ItemView {
     const nameBlock = bar.createDiv({ cls: 'pcai-pdf-name-block' });
     this.filenameLabelEl = nameBlock.createSpan({ cls: 'pcai-pdf-filename', text: 'Select a PDF' });
     this.metadataEl = nameBlock.createDiv({ cls: 'pcai-pdf-metadata' });
-    this.metadataEl.style.display = 'none';
+    this.metadataEl.addClass('pcai-hidden');
 
     const navGroup = bar.createDiv('pcai-pdf-nav');
 
@@ -709,13 +706,13 @@ export class PdfViewerView extends ItemView {
     setIcon(outlineBtn, 'list');
     outlineBtn.addEventListener('click', () => this.toggleOutline());
 
-    const canvasBtn = bar.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Add to Canvas' } });
+    const canvasBtn = bar.createEl('button', { cls: 'pcai-icon-btn clickable-icon', attr: { 'aria-label': 'Add to canvas' } });
     setIcon(canvasBtn, 'layout-dashboard');
     canvasBtn.addEventListener('click', () => this.addCurrentPdfToCanvas());
 
     if (this.plugin.settings.enableAi) {
       const aiBtn = bar.createEl('button', { cls: 'pcai-ask-btn mod-cta', text: 'Ask AI' });
-      aiBtn.addEventListener('click', () => this.askAboutCurrentPdf());
+      aiBtn.addEventListener('click', () => void this.askAboutCurrentPdf());
     }
   }
 
@@ -733,7 +730,7 @@ export class PdfViewerView extends ItemView {
 
   private buildSelectionMenu(root: HTMLElement): void {
     this.selectionMenuEl = root.createDiv('pcai-sel-menu');
-    this.selectionMenuEl.style.display = 'none';
+    this.selectionMenuEl.addClass('pcai-hidden');
 
     const colors = this.selectionMenuEl.createDiv('pcai-sel-colors');
     const defaultColor = this.plugin.settings.defaultHighlightColor ?? 'yellow';
@@ -742,7 +739,7 @@ export class PdfViewerView extends ItemView {
         cls: `pcai-sel-dot ${color === defaultColor ? 'pcai-sel-dot--default' : ''}`,
         attr: { title: `Highlight ${color}${color === defaultColor ? ' (default)' : ''}` },
       });
-      dot.style.setProperty('--dot-color', COLOR_HEX[color]);
+      dot.setCssProps({ '--dot-color': COLOR_HEX[color] });
       dot.addEventListener('mousedown', (e) => {
         e.preventDefault();
         this.createHighlight(color);
@@ -757,14 +754,14 @@ export class PdfViewerView extends ItemView {
       const askBtn = actions.createEl('button', { cls: 'pcai-sel-btn pcai-sel-btn--accent', text: 'Ask AI' });
       askBtn.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        this.askAboutSelection();
+        void this.askAboutSelection();
       });
     }
 
     const copyBtn = actions.createEl('button', { cls: 'pcai-sel-btn', text: 'Copy' });
     copyBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      navigator.clipboard.writeText(this.selectedText).catch((err: unknown) => {
+      void navigator.clipboard.writeText(this.selectedText).catch((err: unknown) => {
         new Notice('PDF Tools: Copy failed.');
         console.error('PDF Tools \u2014 clipboard error:', err);
       });
@@ -776,7 +773,7 @@ export class PdfViewerView extends ItemView {
     defineBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const text = this.selectedText.trim();
-      if (text) this.lookupWord(text);
+      if (text) void this.lookupWord(text);
       this.hideSelectionMenu();
       window.getSelection()?.removeAllRanges();
     });
@@ -803,7 +800,7 @@ export class PdfViewerView extends ItemView {
           const num = parseInt(entry.target.getAttribute('data-page') ?? '0', 10);
           if (num > 0 && !this.renderedPages.has(num)) {
             this.renderedPages.add(num);
-            this.renderPage(num).catch((e: unknown) => {
+            void this.renderPage(num).catch((e: unknown) => {
               console.error('PDF Tools \u2014 renderPage error:', e);
             });
           }
@@ -820,8 +817,7 @@ export class PdfViewerView extends ItemView {
         cls: 'pcai-page-wrapper pcai-page-placeholder',
         attr: { 'data-page': String(i) },
       });
-      wrapper.style.width = `${vp.width}px`;
-      wrapper.style.height = `${vp.height}px`;
+      wrapper.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
 
       this.pageObserver.observe(wrapper);
     }
@@ -840,11 +836,10 @@ export class PdfViewerView extends ItemView {
     const vp = page.getViewport({ scale: this.currentScale });
 
     const dpr = window.devicePixelRatio || 1;
-    const canvas = wrapper.createEl('canvas', { cls: 'pcai-page-canvas' }) as HTMLCanvasElement;
+    const canvas = wrapper.createEl('canvas', { cls: 'pcai-page-canvas' });
     canvas.width = Math.round(vp.width * dpr);
     canvas.height = Math.round(vp.height * dpr);
-    canvas.style.width = `${vp.width}px`;
-    canvas.style.height = `${vp.height}px`;
+    canvas.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     if (dpr !== 1) ctx.scale(dpr, dpr);
@@ -861,9 +856,8 @@ export class PdfViewerView extends ItemView {
     }
 
     const textLayerEl = wrapper.createDiv({ cls: 'textLayer' });
-    textLayerEl.style.width = `${vp.width}px`;
-    textLayerEl.style.height = `${vp.height}px`;
-    textLayerEl.style.setProperty('--scale-factor', String(this.currentScale));
+    textLayerEl.setCssStyles({ width: `${vp.width}px`, height: `${vp.height}px` });
+    textLayerEl.setCssProps({ '--scale-factor': String(this.currentScale) });
 
     const textContent = await page.getTextContent();
     const textRenderTask = pdfjsLib.renderTextLayer({
@@ -923,16 +917,16 @@ export class PdfViewerView extends ItemView {
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.currentScale + delta));
     if (newScale === this.currentScale) return;
     this.currentScale = newScale;
-    this.rerenderAllPages().catch((e: unknown) => console.error('PDF Tools \u2014 zoom error:', e));
+    void this.rerenderAllPages().catch((e: unknown) => console.error('PDF Tools \u2014 zoom error:', e));
   }
 
   private fitToWidth(): void {
     if (!this.pdfDoc) return;
     const viewportWidth = (this.pagesEl.parentElement?.clientWidth ?? 600) - 32;
-    this.pdfDoc.getPage(1).then((page) => {
+    void this.pdfDoc.getPage(1).then((page) => {
       const naturalWidth = page.getViewport({ scale: 1 }).width;
       this.currentScale = viewportWidth / naturalWidth;
-      this.rerenderAllPages().catch((e: unknown) => console.error('PDF Tools \u2014 fitToWidth error:', e));
+      void this.rerenderAllPages().catch((e: unknown) => console.error('PDF Tools \u2014 fitToWidth error:', e));
     }).catch((e: unknown) => console.error('PDF Tools \u2014 fitToWidth error:', e));
   }
 
@@ -1045,12 +1039,12 @@ export class PdfViewerView extends ItemView {
 
   private buildSearchBar(root: HTMLElement): void {
     this.searchBarEl = root.createDiv('pcai-search-bar');
-    this.searchBarEl.style.display = 'none';
+    this.searchBarEl.addClass('pcai-hidden');
 
     this.searchInputEl = this.searchBarEl.createEl('input', {
       cls: 'pcai-search-input',
       attr: { type: 'text', placeholder: 'Search in PDF\u2026' },
-    }) as HTMLInputElement;
+    });
 
     const prevBtn = this.searchBarEl.createEl('button', { cls: 'pcai-icon-btn', text: '\u25B2' });
     prevBtn.addEventListener('click', () => this.navigateSearch(-1));
@@ -1063,7 +1057,7 @@ export class PdfViewerView extends ItemView {
     const closeBtn = this.searchBarEl.createEl('button', { cls: 'pcai-icon-btn', text: '\u00D7' });
     closeBtn.addEventListener('click', () => this.toggleSearch());
 
-    this.searchInputEl.addEventListener('input', () => this.executeSearch());
+    this.searchInputEl.addEventListener('input', () => void this.executeSearch());
 
     this.searchInputEl.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
@@ -1077,7 +1071,7 @@ export class PdfViewerView extends ItemView {
 
   private toggleSearch(): void {
     this.searchOpen = !this.searchOpen;
-    this.searchBarEl.style.display = this.searchOpen ? 'flex' : 'none';
+    this.searchBarEl.toggleClass('pcai-hidden', !this.searchOpen);
     if (this.searchOpen) {
       this.searchInputEl.focus();
       this.searchInputEl.select();
@@ -1105,8 +1099,7 @@ export class PdfViewerView extends ItemView {
         const page = await this.pdfDoc.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((item: any) => item.str ?? '')
+          .map((item) => ('str' in item ? item.str : ''))
           .join(' ')
           .toLowerCase();
 
@@ -1182,35 +1175,33 @@ export class PdfViewerView extends ItemView {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private renderOutlineItems(items: any[], parent: HTMLElement, depth: number): void {
+  private renderOutlineItems(items: { title?: string; items?: unknown[]; dest?: unknown }[], parent: HTMLElement, depth: number): void {
     for (const item of items) {
       const row = parent.createDiv({
         cls: 'pcai-outline-item',
       });
-      row.style.paddingLeft = `${12 + depth * 16}px`;
+      row.setCssStyles({ paddingLeft: `${12 + depth * 16}px` });
       row.createSpan({ text: item.title ?? '(untitled)' });
 
       row.addEventListener('click', () => {
-        this.navigateToOutlineItem(item);
+        void this.navigateToOutlineItem(item);
       });
 
       if (item.items && item.items.length > 0) {
-        this.renderOutlineItems(item.items, parent, depth + 1);
+        this.renderOutlineItems(item.items as { title?: string; items?: unknown[]; dest?: unknown }[], parent, depth + 1);
       }
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async navigateToOutlineItem(item: any): Promise<void> {
+  private async navigateToOutlineItem(item: { dest?: unknown }): Promise<void> {
     if (!this.pdfDoc) return;
     try {
       const dest = typeof item.dest === 'string'
         ? await this.pdfDoc.getDestination(item.dest)
         : item.dest;
-      if (!dest) return;
+      if (!dest || !Array.isArray(dest)) return;
 
-      const pageIdx = await this.pdfDoc.getPageIndex(dest[0]);
+      const pageIdx = await this.pdfDoc.getPageIndex(dest[0] as { num: number; gen: number });
       this.scrollToPage(pageIdx + 1);
     } catch {
       // Some destinations can't be resolved
@@ -1281,13 +1272,12 @@ export class PdfViewerView extends ItemView {
     const menuLeft = Math.min(lastRect.left - containerRect.left, containerRect.width - 280);
     const menuTop = lastRect.bottom - containerRect.top + 6;
 
-    this.selectionMenuEl.style.left = `${Math.max(0, menuLeft)}px`;
-    this.selectionMenuEl.style.top = `${menuTop}px`;
-    this.selectionMenuEl.style.display = 'flex';
+    this.selectionMenuEl.setCssStyles({ left: `${Math.max(0, menuLeft)}px`, top: `${menuTop}px` });
+    this.selectionMenuEl.removeClass('pcai-hidden');
   }
 
   private hideSelectionMenu(): void {
-    this.selectionMenuEl.style.display = 'none';
+    this.selectionMenuEl.addClass('pcai-hidden');
   }
 
   // ─── Highlights ────────────────────────────────────────────────────────────
@@ -1349,11 +1339,13 @@ export class PdfViewerView extends ItemView {
 
     for (const rect of h.rects) {
       const div = layer.createDiv({ cls: `pcai-highlight pcai-hl-${h.color}` });
-      div.style.left = `${rect.x * 100}%`;
-      div.style.top = `${rect.y * 100}%`;
-      div.style.width = `${rect.width * 100}%`;
-      div.style.height = `${rect.height * 100}%`;
-      div.style.backgroundColor = COLOR_HEX[h.color];
+      div.setCssStyles({
+        left: `${rect.x * 100}%`,
+        top: `${rect.y * 100}%`,
+        width: `${rect.width * 100}%`,
+        height: `${rect.height * 100}%`,
+        backgroundColor: COLOR_HEX[h.color],
+      });
       div.title = h.text;
       div.dataset.highlightId = h.id;
 
@@ -1372,7 +1364,7 @@ export class PdfViewerView extends ItemView {
         item
           .setTitle('Ask AI about this highlight')
           .setIcon('bot')
-          .onClick(() => this.askAboutHighlight(h)),
+          .onClick(() => void this.askAboutHighlight(h)),
       );
     }
     menu.addItem((item) =>
@@ -1436,7 +1428,7 @@ export class PdfViewerView extends ItemView {
   private updateMetadataDisplay(): void {
     this.metadataEl.empty();
     if (!this.currentMetadata) {
-      this.metadataEl.style.display = 'none';
+      this.metadataEl.addClass('pcai-hidden');
       return;
     }
 
@@ -1456,7 +1448,7 @@ export class PdfViewerView extends ItemView {
     }
 
     if (parts.length > 0) {
-      this.metadataEl.style.display = 'block';
+      this.metadataEl.removeClass('pcai-hidden');
       this.metadataEl.createSpan({
         cls: 'pcai-pdf-meta-text',
         text: parts.join(' \u00B7 '),
@@ -1632,13 +1624,13 @@ export class PdfViewerView extends ItemView {
 
     if (!query) {
       this.annoSearchActive = false;
-      if (clearBtn) clearBtn.style.display = 'none';
+      if (clearBtn) clearBtn.addClass('pcai-hidden');
       this.refreshAnnotations();
       return;
     }
 
     this.annoSearchActive = true;
-    if (clearBtn) clearBtn.style.display = 'flex';
+    if (clearBtn) clearBtn.removeClass('pcai-hidden');
 
     const allHighlights = this.plugin.annotationStore.getAllHighlights();
     const matches = allHighlights.filter((h) =>
@@ -1683,7 +1675,7 @@ export class PdfViewerView extends ItemView {
           // Load the PDF and scroll to the page
           const file = this.app.vault.getAbstractFileByPath(h.pdfPath);
           if (file instanceof TFile) {
-            this.loadFile(file).then(() => {
+            void this.loadFile(file).then(() => {
               this.scrollToPage(h.pageNumber);
             }).catch((e: unknown) => {
               console.error('PDF Tools: cross-search navigate error:', e);
@@ -1693,7 +1685,7 @@ export class PdfViewerView extends ItemView {
 
         const row = card.createDiv('pcai-anno-row');
         const dot = row.createSpan('pcai-anno-dot');
-        dot.style.setProperty('--dot-color', COLOR_HEX[h.color]);
+        dot.setCssProps({ '--dot-color': COLOR_HEX[h.color] });
 
         const textCol = row.createDiv({ cls: 'pcai-anno-search-text-col' });
         textCol.createSpan({
@@ -1715,10 +1707,12 @@ export class PdfViewerView extends ItemView {
       new Notice('PDF Tools: No PDF open.');
       return;
     }
-    this.plugin.addToCanvas(this.currentFile).catch((e: unknown) => {
+    try {
+      this.plugin.addToCanvas(this.currentFile);
+    } catch (e: unknown) {
       console.error('PDF Tools: addToCanvas error:', e);
       new Notice('PDF Tools: Failed to add PDF to canvas.');
-    });
+    }
   }
 
   // ─── Dictionary ──────────────────────────────────────────────────────────
@@ -1753,7 +1747,7 @@ export class PdfViewerView extends ItemView {
       const raw = await adapter.read(dictPath);
       if (raw) {
         this.localDict = JSON.parse(raw);
-        console.log(`PDF Tools — loaded dictionary (${Object.keys(this.localDict!).length} words) from cache`);
+        console.debug(`PDF Tools — loaded dictionary (${Object.keys(this.localDict!).length} words) from cache`);
         this.localDictLoading = false;
         return this.localDict!;
       }
@@ -1770,7 +1764,7 @@ export class PdfViewerView extends ItemView {
         await adapter.write(dictPath, response.text);
         this.localDict = JSON.parse(response.text);
         const count = Object.keys(this.localDict!).length;
-        console.log(`PDF Tools — downloaded dictionary (${count} words)`);
+        console.debug(`PDF Tools — downloaded dictionary (${count} words)`);
         new Notice(`PDF Tools: Dictionary ready (${count.toLocaleString()} words)`);
         this.localDictLoading = false;
         return this.localDict!;
@@ -1887,8 +1881,7 @@ export class PdfViewerView extends ItemView {
   /**
    * Renders results from the free dictionary API.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private renderApiDictResults(entries: any[]): void {
+  private renderApiDictResults(entries: { word?: string; phonetic?: string; meanings?: { partOfSpeech?: string; definitions?: { definition?: string; example?: string }[] }[] }[]): void {
     for (const entry of entries) {
       const wordDiv = this.dictionaryResultsEl.createDiv({ cls: 'pcai-dict-word-header' });
       wordDiv.createSpan({ cls: 'pcai-dict-word', text: entry.word ?? '' });
@@ -1920,7 +1913,7 @@ export class PdfViewerView extends ItemView {
 
   private openFilePicker(): void {
     new PdfFileSuggestModal(this.app, (file) => {
-      this.loadFile(file).catch((e: unknown) =>
+      void this.loadFile(file).catch((e: unknown) =>
         console.error('PDF Tools \u2014 loadFile error:', e),
       );
     }).open();
