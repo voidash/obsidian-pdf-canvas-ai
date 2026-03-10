@@ -245,7 +245,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
       this.addCommand({
         id: 'ask-selected-pdfs',
-        name: 'Ask Claude about selected canvas pdfs',
+        name: 'Ask AI about selected canvas pdfs',
         callback: () => {
           void this.askAboutPdfs('selected').catch((e: unknown) => console.error(e));
         },
@@ -253,7 +253,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
       this.addCommand({
         id: 'ask-all-canvas-pdfs',
-        name: 'Ask Claude about all canvas pdfs',
+        name: 'Ask AI about all canvas pdfs',
         callback: () => {
           void this.askAboutPdfs('all').catch((e: unknown) => console.error(e));
         },
