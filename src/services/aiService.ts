@@ -1,4 +1,8 @@
 import OpenAI from 'openai';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionCreateParamsStreaming,
+} from 'openai/resources/chat/completions';
 import type { PluginSettings } from '../settings';
 
 export interface ChatMessage {
@@ -30,6 +34,34 @@ interface ToolCallAccumulator {
   id: string;
   name: string;
   arguments: string;
+}
+
+/** Shape of Anthropic SSE events we handle. */
+interface AnthropicSSEEvent {
+  type: string;
+  content_block?: { type: string; id?: string; name?: string };
+  delta?: {
+    type?: string;
+    text?: string;
+    partial_json?: string;
+    stop_reason?: string;
+  };
+}
+
+/** Shape of Anthropic message content blocks for the request body. */
+interface AnthropicContentBlock {
+  type: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  tool_use_id?: string;
+  content?: string;
+}
+
+/** Shape of Anthropic message in the request body. */
+interface AnthropicMessage {
+  role: string;
+  content: string | AnthropicContentBlock[];
 }
 
 const MAX_TOOL_ROUNDS = 6;
@@ -116,7 +148,7 @@ export class AiService {
    * we execute them and recurse. Text deltas are forwarded immediately.
    */
   private async streamWithTools(
-    messages: Record<string, unknown>[],
+    messages: ChatCompletionMessageParam[],
     onDelta: (delta: string) => void,
     onDone: () => void,
     options: StreamOptions | undefined,
@@ -127,22 +159,17 @@ export class AiService {
       return;
     }
 
-    const params: Record<string, unknown> = {
+    const params: ChatCompletionCreateParamsStreaming = {
       model: this.settings.model,
       messages,
-      stream: true,
+      stream: true as const,
       max_tokens: 4096,
+      ...(options?.tools?.length && options.executeToolCall
+        ? { tools: options.tools as OpenAI.ChatCompletionTool[] }
+        : {}),
     };
 
-    if (options?.tools?.length && options.executeToolCall) {
-      params.tools = options.tools;
-    }
-
-    // Cast needed: params is built dynamically (tools added conditionally);
-    // SDK stream type varies between OpenAI-compatible providers.
-    const stream = await this.client.chat.completions.create(
-      params as unknown as OpenAI.ChatCompletionCreateParams & { stream: true },
-    );
+    const stream = await this.client.chat.completions.create(params);
 
     const toolCalls: ToolCallAccumulator[] = [];
 
@@ -156,12 +183,9 @@ export class AiService {
       }
 
       // Accumulate tool calls from stream
-      const dtc = (delta as Record<string, unknown>).tool_calls as
-        | { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
-        | undefined;
-      if (dtc && Array.isArray(dtc)) {
-        for (const tc of dtc) {
-          const idx = tc.index ?? 0;
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const idx = tc.index;
           while (toolCalls.length <= idx) {
             toolCalls.push({ id: '', name: '', arguments: '' });
           }
@@ -175,31 +199,31 @@ export class AiService {
     // If there were tool calls, execute and loop
     if (toolCalls.length > 0 && options?.executeToolCall) {
       // Build assistant message with tool calls
-      const assistantMsg = {
-        role: 'assistant',
+      const assistantMsg: ChatCompletionMessageParam = {
+        role: 'assistant' as const,
         content: null,
         tool_calls: toolCalls.map((tc) => ({
           id: tc.id,
-          type: 'function',
+          type: 'function' as const,
           function: { name: tc.name, arguments: tc.arguments },
         })),
       };
 
-      const newMessages = [...messages, assistantMsg];
+      const newMessages: ChatCompletionMessageParam[] = [...messages, assistantMsg];
 
       for (const tc of toolCalls) {
         options.onToolCall?.({ name: tc.name, args: tc.arguments });
 
         let result: string;
         try {
-          const args = JSON.parse(tc.arguments);
+          const args = JSON.parse(tc.arguments) as Record<string, unknown>;
           result = await options.executeToolCall(tc.name, args);
         } catch (err) {
           result = `Error executing ${tc.name}: ${err instanceof Error ? err.message : String(err)}`;
         }
 
         newMessages.push({
-          role: 'tool',
+          role: 'tool' as const,
           tool_call_id: tc.id,
           content: result,
         });
@@ -239,7 +263,7 @@ export class AiService {
 
   private async streamAnthropicLoop(
     systemPrompt: string | undefined,
-    messages: Record<string, unknown>[],
+    messages: AnthropicMessage[],
     onDelta: (delta: string) => void,
     onDone: () => void,
     onError: (error: string) => void,
@@ -251,7 +275,14 @@ export class AiService {
       return;
     }
 
-    const body: Record<string, unknown> = {
+    const body: {
+      model: string;
+      max_tokens: number;
+      stream: boolean;
+      messages: AnthropicMessage[];
+      system?: string;
+      tools?: { name: string; description: string; input_schema: Record<string, unknown> }[];
+    } = {
       model: this.settings.model,
       max_tokens: 4096,
       stream: true,
@@ -319,12 +350,12 @@ export class AiService {
           if (data === '[DONE]') continue;
 
           try {
-            const event = JSON.parse(data);
+            const event = JSON.parse(data) as AnthropicSSEEvent;
 
             if (event.type === 'content_block_start') {
               if (event.content_block?.type === 'tool_use') {
-                currentToolId = event.content_block.id;
-                currentToolName = event.content_block.name;
+                currentToolId = event.content_block.id ?? '';
+                currentToolName = event.content_block.name ?? '';
                 currentToolInput = '';
               }
             } else if (event.type === 'content_block_delta') {
@@ -363,7 +394,7 @@ export class AiService {
       // If tool use, execute and loop
       if (stopReason === 'tool_use' && toolUseBlocks.length > 0 && options?.executeToolCall) {
         // Build assistant message with tool use content
-        const assistantContent: Record<string, unknown>[] = [];
+        const assistantContent: AnthropicContentBlock[] = [];
         for (const block of toolUseBlocks) {
           options.onToolCall?.({ name: block.name, args: JSON.stringify(block.input) });
           assistantContent.push({
@@ -374,13 +405,13 @@ export class AiService {
           });
         }
 
-        const newMessages = [
+        const newMessages: AnthropicMessage[] = [
           ...messages,
           { role: 'assistant', content: assistantContent },
         ];
 
         // Execute tools and add results
-        const toolResults: Record<string, unknown>[] = [];
+        const toolResults: AnthropicContentBlock[] = [];
         for (const block of toolUseBlocks) {
           let result: string;
           try {

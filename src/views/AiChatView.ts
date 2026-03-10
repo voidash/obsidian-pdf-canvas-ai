@@ -18,7 +18,7 @@ export class AiChatView extends AiSidebarView {
   }
 
   getDisplayText(): string {
-    return 'AI Chat';
+    return 'AI chat';
   }
 
   getIcon(): string {

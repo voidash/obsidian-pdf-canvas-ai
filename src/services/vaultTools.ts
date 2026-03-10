@@ -91,12 +91,12 @@ export const VAULT_TOOLS = [
 export class VaultToolExecutor {
   private app: App;
   private pdfService: PdfService;
-  private getCanvas: () => any;
+  private getCanvas: () => unknown;
 
   constructor(
     app: App,
     pdfService: PdfService,
-    getCanvas: () => any,
+    getCanvas: () => unknown,
   ) {
     this.app = app;
     this.pdfService = pdfService;
@@ -245,29 +245,40 @@ export class VaultToolExecutor {
   }
 
   private getCanvasItems(): string {
-    const canvas = this.getCanvas();
-    if (!canvas) {
+    const raw = this.getCanvas();
+    if (!raw) {
       return 'No canvas is currently open.';
     }
+
+    // Narrow from unknown to a structural type for the internal canvas API
+    const canvas = raw as {
+      nodes?: Map<string, Record<string, unknown>>;
+      edges?: Map<string, Record<string, unknown>> | Record<string, unknown>[];
+      data?: { edges?: Map<string, Record<string, unknown>> | Record<string, unknown>[] };
+    };
 
     const items: string[] = [];
 
     if (canvas.nodes) {
       for (const node of canvas.nodes.values()) {
-        const data = typeof node.getData === 'function' ? node.getData() : node;
-        const nodeType = data.type ?? 'unknown';
-        const id = data.id ?? '?';
+        const data = typeof node.getData === 'function'
+          ? (node.getData as () => Record<string, unknown>)()
+          : node;
+        const nodeType = (data.type as string) ?? 'unknown';
+        const id = (data.id as string) ?? '?';
 
         if (nodeType === 'text') {
-          const text = (data.text ?? '').slice(0, 200);
-          items.push(`[Text Card id=${id}] ${text}${data.text?.length > 200 ? '...' : ''}`);
+          const text = ((data.text as string) ?? '').slice(0, 200);
+          items.push(`[Text Card id=${id}] ${text}${(data.text as string)?.length > 200 ? '...' : ''}`);
         } else if (nodeType === 'file') {
-          const filePath = typeof data.file === 'string' ? data.file : (node.file?.path ?? '?');
+          const filePath = typeof data.file === 'string'
+            ? data.file
+            : ((node.file as { path?: string })?.path ?? '?');
           items.push(`[File Node id=${id}] ${filePath}`);
         } else if (nodeType === 'link') {
-          items.push(`[Link id=${id}] ${data.url ?? '?'}`);
+          items.push(`[Link id=${id}] ${(data.url as string) ?? '?'}`);
         } else if (nodeType === 'group') {
-          items.push(`[Group id=${id}] ${data.label || '(unnamed)'}`);
+          items.push(`[Group id=${id}] ${(data.label as string) || '(unnamed)'}`);
         } else {
           items.push(`[${nodeType} id=${id}]`);
         }
@@ -279,7 +290,9 @@ export class VaultToolExecutor {
     if (edges && (edges instanceof Map || Array.isArray(edges))) {
       const iter = edges instanceof Map ? edges.values() : edges;
       for (const edge of iter) {
-        const data = typeof edge.getData === 'function' ? edge.getData() : edge;
+        const data = typeof edge.getData === 'function'
+          ? (edge.getData as () => Record<string, unknown>)()
+          : edge;
         if (data.fromNode && data.toNode) {
           const label = data.label ? ` "${data.label}"` : '';
           items.push(`[Connection] ${data.fromNode} -> ${data.toNode}${label}`);

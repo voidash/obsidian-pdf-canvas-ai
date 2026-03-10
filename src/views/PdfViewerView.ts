@@ -118,7 +118,7 @@ export class PdfViewerView extends ItemView {
 
   // State persistence — allows Obsidian to open PDFs via file explorer, links, etc.
   getState(): Record<string, unknown> {
-    const state = super.getState() as Record<string, unknown>;
+    const state = super.getState();
     if (this.currentFile) {
       state.file = this.currentFile.path;
     }
@@ -146,7 +146,7 @@ export class PdfViewerView extends ItemView {
     }
     this.renderTasks.clear();
     this.pageObserver?.disconnect();
-    this.pdfDoc?.destroy();
+    await this.pdfDoc?.destroy();
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ export class PdfViewerView extends ItemView {
     }
 
     this.renderedPages.clear();
-    this.pdfDoc?.destroy();
+    void this.pdfDoc?.destroy();
     this.pdfDoc = null;
     this.pageObserver?.disconnect();
     this.pagesEl.empty();
@@ -193,7 +193,7 @@ export class PdfViewerView extends ItemView {
 
       this.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
       if (gen !== this.loadGeneration) {
-        this.pdfDoc.destroy();
+        void this.pdfDoc.destroy();
         this.pdfDoc = null;
         return;
       }
@@ -229,7 +229,7 @@ export class PdfViewerView extends ItemView {
     await this.createPagePlaceholders();
     if (gen !== this.loadGeneration) return;
     this.loadHighlightsForCurrentFile();
-    this.loadOutline();
+    void this.loadOutline();
 
     // Resume reading position if enabled
     if (this.plugin.settings.resumeLastPage) {

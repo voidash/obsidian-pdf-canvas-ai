@@ -517,7 +517,7 @@ export class AiSidebarView extends ItemView {
     items[activeIdx].removeClass('pcai-mention-item-active');
     const newIdx = Math.max(0, Math.min(items.length - 1, activeIdx + direction));
     items[newIdx].addClass('pcai-mention-item-active');
-    (items[newIdx] as HTMLElement).scrollIntoView({ block: 'nearest' });
+    items[newIdx].scrollIntoView({ block: 'nearest' });
   }
 
   private selectMention(file: TFile): void {
@@ -860,7 +860,7 @@ export class AiSidebarView extends ItemView {
   private renderMarkdown(containerEl: HTMLElement, markdown: string): void {
     const wrapper = containerEl.createDiv({ cls: 'pcai-msg-content pcai-markdown' });
     try {
-      MarkdownRenderer.render(
+      void MarkdownRenderer.render(
         this.app,
         markdown,
         wrapper,

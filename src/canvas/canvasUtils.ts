@@ -7,9 +7,9 @@ export interface CanvasPdfNode {
   node: unknown;
 }
 
-function getActiveCanvas(app: App): unknown {
+function getActiveCanvas(app: App): object | null {
   // First try the active view
-  const active = app.workspace.getActiveViewOfType(ItemView) as (ItemView & { canvas?: unknown }) | null;
+  const active = app.workspace.getActiveViewOfType(ItemView) as (ItemView & { canvas?: object }) | null;
   if (active && active.getViewType() === 'canvas' && active.canvas) {
     return active.canvas;
   }
@@ -18,7 +18,7 @@ function getActiveCanvas(app: App): unknown {
   // Search all leaves for the most recent canvas view.
   const canvasLeaves = app.workspace.getLeavesOfType('canvas');
   if (canvasLeaves.length > 0) {
-    const view = canvasLeaves[0].view as { canvas?: unknown };
+    const view = canvasLeaves[0].view as { canvas?: object };
     return view.canvas ?? null;
   }
 

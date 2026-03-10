@@ -6,6 +6,21 @@ import type PdfCanvasAiPlugin from '../main';
 import { HIGHLIGHT_COLORS, COLOR_HEX } from '../types/annotations';
 import type { HighlightColor, PageRect, Highlight } from '../types/annotations';
 
+/** Minimal shape of an internal Obsidian canvas object used for node creation. */
+interface InternalCanvasObj {
+  createTextNode?: (opts: Record<string, unknown>) => unknown;
+  addNode?: (data: Record<string, unknown>) => void;
+  requestSave?: () => void;
+}
+
+/** Minimal shape of an internal Obsidian canvas node. */
+interface InternalNodeObj {
+  x?: number;
+  y?: number;
+  width?: number;
+  contentBlockerEl?: HTMLElement;
+}
+
 /**
  * Renders a single PDF inline inside an Obsidian canvas node,
  * replacing the default PDF embed with our enhanced pdfjs renderer.
@@ -21,8 +36,8 @@ export class CanvasInlinePdf {
   private containerEl: HTMLElement;
   private file: TFile;
   private plugin: PdfCanvasAiPlugin;
-  private canvas: any;
-  private node: any;
+  private canvas: InternalCanvasObj;
+  private node: InternalNodeObj;
 
   private pdfDoc: PDFDocumentProxy | null = null;
   private pagesEl!: HTMLElement;
@@ -55,15 +70,15 @@ export class CanvasInlinePdf {
     containerEl: HTMLElement,
     file: TFile,
     plugin: PdfCanvasAiPlugin,
-    canvas: any,
-    node: any,
+    canvas: unknown,
+    node: unknown,
     singlePageNum?: number,
   ) {
     this.containerEl = containerEl;
     this.file = file;
     this.plugin = plugin;
-    this.canvas = canvas;
-    this.node = node;
+    this.canvas = canvas as InternalCanvasObj;
+    this.node = node as InternalNodeObj;
     this.singlePage = singlePageNum ?? null;
   }
 
@@ -490,7 +505,7 @@ export class CanvasInlinePdf {
     );
     menu.addItem((item) =>
       item
-        .setTitle('Extract as Card')
+        .setTitle('Extract as card')
         .setIcon('file-plus')
         .onClick(() => {
           this.selectedText = h.text;

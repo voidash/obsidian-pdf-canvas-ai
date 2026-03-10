@@ -208,11 +208,11 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
 
     // ── AI settings (only shown when AI is enabled) ──
     if (this.plugin.settings.enableAi) {
-      new Setting(containerEl).setName('AI Configuration').setHeading();
+      new Setting(containerEl).setName('AI configuration').setHeading();
 
       // ── Provider selector ──
       new Setting(containerEl)
-        .setName('AI Provider')
+        .setName('AI provider')
         .setDesc('Select how to connect to an AI model.')
         .addDropdown((dd) => {
           for (const [key, label] of Object.entries(PROVIDER_LABELS)) {
@@ -252,7 +252,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
       };
 
       new Setting(containerEl)
-        .setName('API Key')
+        .setName('API key')
         .setDesc(keyDesc)
         .addText((text) => {
           text
@@ -282,7 +282,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
 
       // ── Base URL ──
       new Setting(containerEl)
-        .setName('API Base URL')
+        .setName('API base URL')
         .setDesc('Override the endpoint URL. Change only if you know what you\'re doing.')
         .addText((text) =>
           text
@@ -347,7 +347,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
     }
 
     // ── PDF Reader settings ──
-    new Setting(containerEl).setName('PDF Reader').setHeading();
+    new Setting(containerEl).setName('PDF reader').setHeading();
 
     new Setting(containerEl)
       .setName('Default zoom level')
@@ -421,7 +421,7 @@ export class PdfCanvasAiSettingTab extends PluginSettingTab {
 
     // ── Highlight color labels ──
     new Setting(containerEl)
-      .setName('Highlight Color Labels')
+      .setName('Highlight color labels')
       .setDesc('Assign a meaning to each highlight color. These labels appear in the annotations sidebar and can be used as filters.')
       .setHeading();
 

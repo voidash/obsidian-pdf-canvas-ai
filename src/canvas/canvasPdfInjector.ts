@@ -6,6 +6,20 @@ import { CanvasInlinePdf } from './canvasInlinePdf';
 /** Regex to extract spread-page marker from text node content. */
 const SPREAD_MARKER_RE = /%%pcai-spread:(.+?):(\d+)%%/;
 
+/** Minimal shape of internal Obsidian canvas node objects used during scanning. */
+interface InternalCanvasNode {
+  contentEl?: HTMLElement;
+  file?: unknown;
+  getData?: () => Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Minimal shape of the internal Obsidian canvas object. */
+interface InternalCanvas {
+  nodes?: Map<string, InternalCanvasNode>;
+  [key: string]: unknown;
+}
+
 /**
  * Monitors canvas views for PDF file nodes and spread-page text nodes,
  * replacing default embeds with our pdfjs renderer.
@@ -51,7 +65,7 @@ export class CanvasPdfInjector {
         this.observers.set(leaf, mo);
       }
 
-      const canvas = (leaf.view as any)?.canvas;
+      const canvas = (leaf.view as { canvas?: InternalCanvas })?.canvas;
       if (!canvas?.nodes) continue;
 
       for (const node of canvas.nodes.values()) {
@@ -87,12 +101,15 @@ export class CanvasPdfInjector {
     }
   }
 
-  private tryInjectSpreadPage(el: HTMLElement, node: any, canvas: any): void {
+  private tryInjectSpreadPage(el: HTMLElement, node: unknown, canvas: unknown): void {
     let text: string | undefined;
     try {
-      const data = typeof node.getData === 'function' ? node.getData() : null;
+      const n = node as Record<string, unknown>;
+      const data = typeof n.getData === 'function'
+        ? (n.getData as () => Record<string, unknown>)()
+        : null;
       if (data?.type !== 'text') return;
-      text = data.text;
+      text = data.text as string | undefined;
     } catch {
       return;
     }
@@ -119,8 +136,8 @@ export class CanvasPdfInjector {
   }
 
   /** Look up the renderer for a given canvas node, if one exists. */
-  getRendererForNode(node: any): CanvasInlinePdf | null {
-    const el: HTMLElement | undefined = node?.contentEl;
+  getRendererForNode(node: unknown): CanvasInlinePdf | null {
+    const el = (node as { contentEl?: HTMLElement })?.contentEl;
     if (!el) return null;
     return this.renderers.get(el) ?? null;
   }

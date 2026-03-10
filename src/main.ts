@@ -18,6 +18,51 @@ import { CanvasPdfInjector } from './canvas/canvasPdfInjector';
 
 type SpreadDirection = 'down' | 'right';
 
+/** Minimal shape of canvas node serialized data (internal Obsidian API). */
+interface CanvasNodeData {
+  type?: string;
+  text?: string;
+  url?: string;
+  label?: string;
+  file?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  id?: string;
+  fromNode?: string;
+  toNode?: string;
+}
+
+interface CanvasNode {
+  file?: TFile;
+  x?: number;
+  y?: number;
+  width?: number;
+  id?: string;
+  contentEl?: HTMLElement;
+  getData?: () => CanvasNodeData;
+}
+
+interface CanvasEdge {
+  getData?: () => CanvasNodeData;
+  fromNode?: string;
+  toNode?: string;
+}
+
+/** Minimal typed surface for the internal Obsidian canvas object. */
+interface CanvasApi {
+  nodes?: Map<string, CanvasNode>;
+  edges?: Map<string, CanvasEdge> | CanvasEdge[];
+  data?: { edges?: Map<string, CanvasEdge> | CanvasEdge[] };
+  selection?: Set<unknown>;
+  removeNode?: (node: unknown) => void;
+  createTextNode?: (opts: Record<string, unknown>) => CanvasNode | null;
+  createFileNode?: (opts: Record<string, unknown>) => CanvasNode | null;
+  createEdge?: (opts: Record<string, unknown>) => unknown;
+  requestSave?: () => void;
+  getViewportCenter?: () => { x: number; y: number };
+}
+
 class SpreadOptionsModal extends Modal {
   private onChoose: (direction: SpreadDirection) => void;
 
@@ -29,7 +74,7 @@ class SpreadOptionsModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass('pcai-spread-modal');
-    contentEl.createEl('h3', { text: 'Spread PDF Pages' });
+    contentEl.createEl('h3', { text: 'Spread PDF pages' });
 
     const row = contentEl.createDiv({ cls: 'pcai-spread-modal-row' });
 
@@ -95,7 +140,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
 
     // Start the local proxy only if opt-in via settings
     if (this.settings.enableAi && this.settings.proxyAutoStart && this.settings.provider === 'local-proxy') {
-      this.proxyManager.ensureRunning().catch((e: unknown) => {
+      void this.proxyManager.ensureRunning().catch((e: unknown) => {
         console.error('PDF Tools: proxyManager.ensureRunning error', e);
       });
     }
@@ -156,20 +201,20 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private addRibbonIcons(): void {
     if (this.settings.enableAi) {
       this.addRibbonIcon('bot', 'Open PDF Tools sidebar', () => {
-        this.activateAiSidebar().catch((e: unknown) => {
+        void this.activateAiSidebar().catch((e: unknown) => {
           console.error('PDF Tools: activateAiSidebar error', e);
         });
       });
 
-      this.addRibbonIcon('message-square', 'Open AI Chat', () => {
-        this.activateAiChat().catch((e: unknown) => {
+      this.addRibbonIcon('message-square', 'Open AI chat', () => {
+        void this.activateAiChat().catch((e: unknown) => {
           console.error('PDF Tools: activateAiChat error', e);
         });
       });
     }
 
-    this.addRibbonIcon('file-text', 'Open PDF Viewer', () => {
-      this.activatePdfViewer().catch((e: unknown) => {
+    this.addRibbonIcon('file-text', 'Open PDF viewer', () => {
+      void this.activatePdfViewer().catch((e: unknown) => {
         console.error('PDF Tools: activatePdfViewer error', e);
       });
     });
@@ -183,7 +228,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         id: 'open-ai-sidebar',
         name: 'Open AI sidebar',
         callback: () => {
-          this.activateAiSidebar().catch((e: unknown) => console.error(e));
+          void this.activateAiSidebar().catch((e: unknown) => console.error(e));
         },
       });
 
@@ -191,7 +236,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         id: 'open-ai-chat',
         name: 'Open AI chat (full window)',
         callback: () => {
-          this.activateAiChat().catch((e: unknown) => console.error(e));
+          void this.activateAiChat().catch((e: unknown) => console.error(e));
         },
       });
 
@@ -199,7 +244,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         id: 'ask-selected-pdfs',
         name: 'Ask Claude about selected canvas PDF(s)',
         callback: () => {
-          this.askAboutPdfs('selected').catch((e: unknown) => console.error(e));
+          void this.askAboutPdfs('selected').catch((e: unknown) => console.error(e));
         },
       });
 
@@ -207,7 +252,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
         id: 'ask-all-canvas-pdfs',
         name: 'Ask Claude about all canvas PDFs',
         callback: () => {
-          this.askAboutPdfs('all').catch((e: unknown) => console.error(e));
+          void this.askAboutPdfs('all').catch((e: unknown) => console.error(e));
         },
       });
     }
@@ -216,7 +261,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       id: 'open-pdf-viewer',
       name: 'Open PDF viewer pane',
       callback: () => {
-        this.activatePdfViewer().catch((e: unknown) => console.error(e));
+        void this.activatePdfViewer().catch((e: unknown) => console.error(e));
       },
     });
 
@@ -224,7 +269,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       id: 'open-selected-pdf',
       name: 'Open selected canvas PDF in viewer',
       callback: () => {
-        this.openSelectedCanvasPdf().catch((e: unknown) => console.error(e));
+        void this.openSelectedCanvasPdf().catch((e: unknown) => console.error(e));
       },
     });
   }
@@ -234,8 +279,10 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private registerCanvasMenu(): void {
     // `canvas:node-menu` fires when the user right-clicks a canvas node.
     // It is undocumented but has been stable across community plugins since v1.4.
-    // Cast workspace to any — the event name is not in Obsidian's public types.
-    const ws = this.app.workspace as any;
+    // Cast workspace — the event name is not in Obsidian's public types.
+    const ws = this.app.workspace as unknown as {
+      on(name: string, callback: (menu: Menu, node: unknown) => void): EventRef;
+    };
     const ref: EventRef = ws.on('canvas:node-menu', (menu: Menu, node: unknown) => {
       const file = this.resolveCanvasNodeFile(node);
       if (!file || file.extension !== 'pdf') return;
@@ -246,7 +293,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .setTitle('Open in PDF viewer')
           .setIcon('file-text')
           .onClick(() => {
-            this.activatePdfViewer()
+            void this.activatePdfViewer()
               .then(() => this.openFileInViewer(file))
               .catch((e: unknown) => console.error(e));
           }),
@@ -257,7 +304,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
             .setTitle('Ask AI about this PDF')
             .setIcon('bot')
             .onClick(() => {
-              this.openFileInViewerAndAsk(file).catch((e: unknown) => console.error(e));
+              void this.openFileInViewerAndAsk(file).catch((e: unknown) => console.error(e));
             }),
         );
       }
@@ -267,7 +314,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .setIcon('layout-grid')
           .onClick(() => {
             new SpreadOptionsModal(this.app, (direction) => {
-              this.spreadPdfPages(file, node, direction).catch((e: unknown) => {
+              void this.spreadPdfPages(file, node, direction).catch((e: unknown) => {
                 console.error('PDF Tools — spreadPdfPages error:', e);
                 new Notice('PDF Tools: Failed to spread PDF pages.');
               });
@@ -279,7 +326,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
           .setTitle('Extract current page')
           .setIcon('scissors')
           .onClick(() => {
-            this.extractCurrentPage(file, node).catch((e: unknown) => {
+            void this.extractCurrentPage(file, node).catch((e: unknown) => {
               console.error('PDF Tools — extractCurrentPage error:', e);
               new Notice('PDF Tools: Failed to extract page.');
             });
@@ -339,19 +386,20 @@ export default class PdfCanvasAiPlugin extends Plugin {
   private registerPdfIntercept(): void {
     // Override the extension → view-type mapping so all PDF opens use our viewer.
     // viewRegistry is internal but widely used by community plugins (pdf++, excalidraw, etc.)
-    const registry = (this.app as any).viewRegistry;
-    if (!registry?.typeByExtension) {
+    const registry = (this.app as unknown as { viewRegistry?: { typeByExtension?: Record<string, string> } }).viewRegistry;
+    const typeByExt = registry?.typeByExtension;
+    if (!typeByExt) {
       console.warn('PDF Tools: viewRegistry not found, PDF intercept unavailable');
       return;
     }
 
-    this.originalPdfViewType = registry.typeByExtension['pdf'];
-    registry.typeByExtension['pdf'] = PDF_VIEWER_VIEW_TYPE;
+    this.originalPdfViewType = typeByExt['pdf'];
+    typeByExt['pdf'] = PDF_VIEWER_VIEW_TYPE;
 
     // Restore on unload so disabling the plugin reverts to native behavior
     this.register(() => {
       if (this.originalPdfViewType !== undefined) {
-        registry.typeByExtension['pdf'] = this.originalPdfViewType;
+        typeByExt['pdf'] = this.originalPdfViewType;
       }
     });
   }
@@ -437,14 +485,14 @@ export default class PdfCanvasAiPlugin extends Plugin {
   }
 
   /** Returns the canvas object from any open canvas leaf, or null. */
-  getActiveCanvas(): any {
-    const active = this.app.workspace.getActiveViewOfType(ItemView) as any;
+  getActiveCanvas(): CanvasApi | null {
+    const active = this.app.workspace.getActiveViewOfType(ItemView) as ItemView & { canvas?: CanvasApi } | null;
     if (active?.getViewType?.() === 'canvas' && active.canvas) {
       return active.canvas;
     }
     const canvasLeaves = this.app.workspace.getLeavesOfType('canvas');
     for (const leaf of canvasLeaves) {
-        const view = leaf.view as any;
+      const view = leaf.view as ItemView & { canvas?: CanvasApi };
       if (view?.canvas) return view.canvas;
     }
     return null;
@@ -513,7 +561,9 @@ export default class PdfCanvasAiPlugin extends Plugin {
       const notice = new Notice('PDF Tools: Reading canvas content...', 0);
       try {
         for (const node of canvas.nodes.values()) {
-          const nodeData = typeof node.getData === 'function' ? node.getData() : node;
+          const nodeData: CanvasNodeData = typeof node.getData === 'function'
+            ? node.getData()
+            : (node as unknown as CanvasNodeData);
           const nodeType = nodeData.type ?? 'unknown';
 
           if (nodeType === 'text' && nodeData.text) {
@@ -596,7 +646,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
    * that our injector detects and replaces with a pdfjs page renderer.
    * This avoids file nodes (which trigger the PDF viewer intercept).
    */
-  private async spreadPdfPages(file: TFile, node: any, direction: SpreadDirection): Promise<void> {
+  private async spreadPdfPages(file: TFile, node: unknown, direction: SpreadDirection): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
       new Notice('PDF Tools: No active canvas found.');
@@ -621,9 +671,10 @@ export default class PdfCanvasAiPlugin extends Plugin {
     pdfDoc.destroy();
 
     // Get the original node position
-    const nodeData = typeof node.getData === 'function' ? node.getData() : node;
-    const originX: number = nodeData.x ?? node.x ?? 0;
-    const originY: number = nodeData.y ?? node.y ?? 0;
+    const n = node as CanvasNode;
+    const nodeData = typeof n.getData === 'function' ? n.getData() : n;
+    const originX: number = nodeData.x ?? n.x ?? 0;
+    const originY: number = nodeData.y ?? n.y ?? 0;
 
     const pageWidth = 400;
     const pageHeight = Math.round(pageWidth * aspectRatio);
@@ -675,7 +726,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
    * Extract the currently visible page of a PDF node as a standalone
    * single-page spread node, positioned to the right of the source.
    */
-  private async extractCurrentPage(file: TFile, node: any): Promise<void> {
+  private async extractCurrentPage(file: TFile, node: unknown): Promise<void> {
     const canvas = this.getActiveCanvas();
     if (!canvas) {
       new Notice('PDF Tools: No active canvas found.');
@@ -686,10 +737,11 @@ export default class PdfCanvasAiPlugin extends Plugin {
     const pageNum = renderer?.getCurrentVisiblePage() ?? 1;
 
     // Get source node position & dimensions
-    const nodeData = typeof node.getData === 'function' ? node.getData() : node;
-    const originX: number = nodeData.x ?? node.x ?? 0;
-    const originY: number = nodeData.y ?? node.y ?? 0;
-    const nodeW: number = nodeData.width ?? node.width ?? 400;
+    const n = node as CanvasNode;
+    const nodeData = typeof n.getData === 'function' ? n.getData() : n;
+    const originX: number = nodeData.x ?? n.x ?? 0;
+    const originY: number = nodeData.y ?? n.y ?? 0;
+    const nodeW: number = nodeData.width ?? n.width ?? 400;
 
     // Compute page aspect ratio
     const buffer = await this.app.vault.readBinary(file);
@@ -731,7 +783,7 @@ export default class PdfCanvasAiPlugin extends Plugin {
       return;
     }
 
-    if (typeof canvas.createFileNode !== 'function') {
+    if (typeof canvas.createFileNode !== 'function' || typeof canvas.createTextNode !== 'function') {
       new Notice('PDF Tools: Canvas API not available.');
       return;
     }
